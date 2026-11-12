@@ -30,8 +30,9 @@ echo "${GH_TOKEN:-}" >"$FAKE_GH_TOKEN"
 case "$1 $2" in
   "label list") [[ -n "${FAKE_GH_LABELS:-}" ]] && echo "$FAKE_GH_LABELS"; exit 0 ;;
   "label create") [[ "${FAKE_GH_LABEL_DENIED:-}" == 1 ]] && exit 1; exit 0 ;;
-  "pr list") exit 0 ;;
+  "pr list") [[ -n "${FAKE_GH_PR_URL:-}" ]] && echo "$FAKE_GH_PR_URL"; exit 0 ;;
   "pr view") echo '{"number":9,"reviewDecision":"CHANGES_REQUESTED","body":"Closes #1"}'; exit 0 ;;
+  "issue create") echo "https://github.com/owner/repo/issues/7"; exit 0 ;;
   "issue view") echo '{"body":"hola"}'; exit 0 ;;
   "pr create") echo "https://github.com/owner/repo/pull/9"; exit 0 ;;
   "api user") [[ "$*" == *--include* ]] && printf 'HTTP/2.0 200 OK\netag: "u"\n\n{"login":"ada"}\n' || echo ada; exit 0 ;;
@@ -116,6 +117,25 @@ check "ensure-label sin permiso sale con 2" test $? -eq 2
 check "ensure-label rechaza un tipo mal escrito" test $? -eq 1
 check "ensure-label es igual en create-issue y create-pr-base" cmp -s "$label" "${skills}/create-pr-base/scripts/ensure-label.sh"
 
+# check-title: inglés con verbo delante, sin tipo, sin número y con menos de 72 caracteres.
+title="${skills}/create-issue/scripts/check-title.sh"
+check "check-title acepta un título bien formado" bash "$title" "Add a delivery-workflow test note"
+check "check-title rechaza el tipo delante" bash -c "! bash '$title' 'docs: add a test note' 2>/dev/null"
+check "check-title rechaza el tipo con ámbito delante" bash -c "! bash '$title' 'feat(login): add the form' 2>/dev/null"
+check "check-title rechaza el número de la issue" bash -c "! bash '$title' 'Add the note for #50' 2>/dev/null"
+check "check-title rechaza la minúscula inicial" bash -c "! bash '$title' 'add a test note' 2>/dev/null"
+check "check-title rechaza el punto final" bash -c "! bash '$title' 'Add a test note.' 2>/dev/null"
+check "check-title rechaza 72 caracteres o más" bash -c "! bash '$title' 'Add $(printf 'x%.0s' {1..68})' 2>/dev/null"
+check "check-title rechaza acentos y eñes" bash -c "! bash '$title' 'Añadir nota de prueba' 2>/dev/null"
+check "check-title rechaza un salto de línea" bash -c "! bash '$title' \$'Add a note\\nSecond line' 2>/dev/null"
+check "check-title rechaza el tipo con barra delante" bash -c "bash '$title' 'docs/ui: add a note' 2>&1 | grep -q 'no lleva el tipo'"
+check "check-title rechaza el tipo con espacio antes de los dos puntos" bash -c "bash '$title' 'docs : add a note' 2>&1 | grep -q 'no lleva el tipo'"
+check "check-title rechaza el tipo en mayúsculas" bash -c "bash '$title' 'Docs(ui)!: add a note' 2>&1 | grep -q 'no lleva el tipo'"
+check "check-title acepta dos puntos que no son un tipo" bash "$title" "Note: update the readme"
+check "check-title acepta una palabra que empieza como un tipo" bash "$title" "Fixtures: add the login cases"
+check "check-title cuenta igual en cualquier locale" bash -c "LC_ALL=en_US.UTF-8 bash '$title' 'Add $(printf 'x%.0s' {1..67})' && ! LC_ALL=en_US.UTF-8 bash '$title' 'Add $(printf 'x%.0s' {1..68})' 2>/dev/null"
+check "check-title es igual en create-issue y create-pr-base" cmp -s "$title" "${skills}/create-pr-base/scripts/check-title.sh"
+
 # create-pr-base: base detectada, draft, asignada y con etiqueta.
 echo "cuerpo" >"${work}/body.md"
 : >"$FAKE_GH_LOG"
@@ -124,8 +144,35 @@ check "la PR va contra staging, en draft, asignada y con etiqueta" grep -q -- "p
 : >"$FAKE_GH_LOG"
 FAKE_GH_LABEL_DENIED=1 "${skills}/create-pr-base/scripts/create-pr-base.sh" 5-knowledge-add-notes "Add notes" "${work}/body.md" fix >/dev/null 2>&1
 check "sin permiso de etiquetas, la PR sale sin etiqueta" bash -c "grep -q 'pr create' '$FAKE_GH_LOG' && ! grep -q -- '--label' <(grep 'pr create' '$FAKE_GH_LOG')"
+: >"$FAKE_GH_LOG"
+check "create-pr-base no abre la PR con el tipo en el título" bash -c "
+  out=\$('${skills}/create-pr-base/scripts/create-pr-base.sh' 5-knowledge-add-notes 'docs: add notes' '${work}/body.md' knowledge 2>&1)
+  [[ \$? -ne 0 && \$out == *'no lleva el tipo'* ]] && ! grep -q 'pr create' '$FAKE_GH_LOG'"
+: >"$FAKE_GH_LOG"
+existing=$(FAKE_GH_PR_URL=https://github.com/owner/repo/pull/3 "${skills}/create-pr-base/scripts/create-pr-base.sh" 5-knowledge-add-notes "docs: añadir notas" "${work}/body.md" knowledge 2>&1)
+check "con la PR ya abierta, create-pr-base devuelve su URL sin mirar el título" grep -q "ya existía: https://github.com/owner/repo/pull/3" <<<"$existing"
+printf 'Closes #\n\nComo pide la issue #12.\n' >"${work}/body-con-numero.md"
+check "con la PR ya abierta, create-pr-base tampoco mira el cuerpo" bash -c "FAKE_GH_PR_URL=https://github.com/owner/repo/pull/3 '${skills}/create-pr-base/scripts/create-pr-base.sh' 5-knowledge-add-notes 'Add notes' '${work}/body-con-numero.md' knowledge | grep -q 'ya existía'"
+check "con la PR ya abierta, no se crea otra" bash -c "! grep -q 'pr create' '$FAKE_GH_LOG'"
+
+: >"$FAKE_GH_LOG"
+check "create-pr-base rechaza un cuerpo que nombra la issue" bash -c "
+  out=\$('${skills}/create-pr-base/scripts/create-pr-base.sh' 5-knowledge-add-notes 'Add notes' '${work}/body-con-numero.md' knowledge 2>&1)
+  [[ \$? -ne 0 && \$out == *'no nombra la issue'* ]] && ! grep -q 'pr create' '$FAKE_GH_LOG'"
 GIT_WORKFLOW_BASE=main "${skills}/create-pr-base/scripts/create-pr-base.sh" 5-knowledge-add-notes "Add notes" "${work}/body.md" feat >/dev/null 2>&1
 check "GIT_WORKFLOW_BASE cambia la base" grep -q -- "pr create --base main" "$FAKE_GH_LOG"
+
+# create-issue: comprueba el título antes de llamar a gh, con etiqueta y asignada.
+: >"$FAKE_GH_LOG"
+check "create-issue crea la issue" "${skills}/create-issue/scripts/create-issue.sh" "Add notes" "${work}/body.md" knowledge
+check "la issue va asignada y con etiqueta" grep -q -- "issue create --title Add notes --body-file ${work}/body.md --assignee @me --label knowledge" "$FAKE_GH_LOG"
+: >"$FAKE_GH_LOG"
+check "create-issue no crea la issue con el tipo en el título" bash -c "
+  out=\$('${skills}/create-issue/scripts/create-issue.sh' 'docs: add notes' '${work}/body.md' knowledge 2>&1)
+  [[ \$? -ne 0 && \$out == *'no lleva el tipo'* ]] && test ! -s '$FAKE_GH_LOG'"
+: >"$FAKE_GH_LOG"
+FAKE_GH_LABEL_DENIED=1 "${skills}/create-issue/scripts/create-issue.sh" "Add notes" "${work}/body.md" fix >/dev/null 2>&1
+check "sin permiso de etiquetas, la issue sale sin etiqueta" bash -c "grep -q 'issue create' '$FAKE_GH_LOG' && ! grep -q -- '--label' <(grep 'issue create' '$FAKE_GH_LOG')"
 
 # github-cache: el fichero vive en .git/ y no aparece como cambio.
 node "${skills}/github-cache/scripts/github-cache.mjs" directory owner/repo >/dev/null

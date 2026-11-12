@@ -28,7 +28,7 @@ skills:
 
 ### Crear o actualizar la pull request
 
-1. **Recepción:** Toma el título de la issue, el tipo, la rama que acaba de subirse y, si no es la detectada, la base. No hace falta el número de issue.
+1. **Recepción:** Toma el título de la issue, el tipo, la rama que acaba de subirse y, si no es la detectada, la base. No hace falta el número de issue. Si el título no tiene la forma de `check-title.sh` (una issue anterior a esa regla, en español o con el tipo delante), reescríbelo en inglés como dice la skill `create-pr-base` antes de llamarla.
 2. **Validación:** El cuerpo va en español y rellena la plantilla del tipo de la skill `create-pr-base`. La sección Issue se deja con `Closes #` sin número al crear. Si el tipo no tiene plantilla, usa la más cercana.
 3. **Procesamiento:** Usa la skill `create-pr-base` para crearla contra la rama base, directamente en draft, asignada al usuario autenticado y con la etiqueta del tipo en una misma invocación.
 4. **Formateo:** Responde con el título, la base, el autor, la persona asignada, la etiqueta y la URL.

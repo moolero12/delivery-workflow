@@ -20,7 +20,7 @@ La carpeta de esta skill es la que contiene este `SKILL.md`: en Claude Code, `${
 
 #### Reglas de Invocación Críticas
 
-- **Cuerpo**: Conserva el resto del cuerpo en español. Si `Closes #N` ya está, no lo dupliques. Si la sección Issue tiene `Related to #N` u otra línea suelta con el número, sustitúyela por `Closes #N`.
+- **Cuerpo**: Conserva el resto del cuerpo en español. Si `Closes #N` ya está, no lo dupliques. Si la sección Issue tiene `Related to #N` u otra línea suelta con el número, sustitúyela por `Closes #N`. El número de la issue solo va en esa línea: si el cuerpo lo nombra en otra sección («El detalle está en la issue #N»), quítalo de ahí.
 - **Development**: Lee el id de nodo de la issue y el de la pull request con `gh.sh`. Luego llama a `addCloseIssueReferences`. Eso es la barra Development. `issueId` es el id de la issue. `pullRequestIds` lleva el id de la pull request. `OWNER` y `REPO` salen de `gh.sh repo view --json owner,name`.
 
 Los ids:
