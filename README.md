@@ -9,6 +9,7 @@ Paquete [APM](https://github.com/microsoft/apm) para **Claude Code, Cursor y Cod
 3. **Escribe la spec, el plan y las tasks** en la propia issue.
 4. **La implementa en hasta nueve rondas** de código, tests y revisión de la documentación. Cada ronda deja un comentario en la issue.
 5. **La cierra** con el commit final, el push y la petición de revisión.
+6. **Si la revisión pide cambios**, escribe spec, plan y tasks en un comentario de la misma issue y repite el ciclo.
 
 Solo se para si a la spec le falta un dato, si aparece un secreto o si falla la novena ronda.
 
@@ -53,6 +54,19 @@ Cada persona tiene su propio `.env` con su propio token. El `.env` no se sube nu
 
 4. Crea el `.env` con tu token, como explica [El token de GitHub](#el-token-de-github).
 
+5. (Opcional) Elige el modelo de cada agente con `/configure-models`, según se describe en [Modelos de los agentes](#modelos-de-los-agentes). Repítelo después de cada `apm install` o `apm update`.
+
+## Modelos de los agentes
+
+Cada agente puede ejecutarse con un modelo acorde a su tarea (uno de mayor capacidad para el que redacta la especificación y uno ligero para el que lanza un script), y cada persona dispone de una suscripción distinta. Por ello el modelo no se incluye en el paquete. Es un paso opcional: tras `apm install`, ejecuta `/configure-models` en el chat. La skill detecta los modelos disponibles en tu cuenta, propone uno por agente indicando el motivo y solicita confirmación una sola vez para aceptarlos o cambiar alguno.
+
+Compatible con **Cursor, Claude Code y Codex**. Qué tener en cuenta:
+
+- `apm install` y `apm update` eliminan la línea `model` de los agentes: vuelve a ejecutar `/configure-models`, que conserva tus elecciones anteriores. `check-status` lo señala con `Modelos: desincronizado`.
+- La línea `model` es personal: no la incluyas en los commits.
+
+Funcionamiento, cambio de modelo y verificación en cada herramienta: [docs/MODELOS.md](docs/MODELOS.md).
+
 ## Instalación en Windows
 
 Los scripts del paquete son de `bash`, así que en Windows hacen falta una terminal y un entorno de tipo Unix. Elige una opción.
@@ -95,10 +109,13 @@ Llama al orquestador con `/delivery-workflow` (en Codex, `$delivery-workflow`) y
 | «Crea la issue, solo git: …» | Hasta la pull request en draft. El código lo escribes tú. |
 | «Guarda `src/users.js` con feat: count users by gender» | Commit de esos ficheros y push. |
 | «Que la revisen Ana y Luis» | Pide la revisión y saca la pull request de draft. |
+| «La PR pide cambios» | Spec, plan y tasks en un comentario de la misma issue, y se repite el ciclo. |
 
 **Tipos de tarea:** `feat`, `fix`, `docs`, `refactor`, `test`, `chore` y `knowledge`. Las ramas se llaman `número-tipo-descripcion`.
 
 **Rama base:** `GIT_WORKFLOW_BASE` si está definida, si no `staging` si existe, y si no la rama por defecto.
+
+La prosa de issues, spec, pull requests y documentación del ciclo sigue la skill `say-it-straight` (español declarativo); los commits siguen en inglés con `commit-changes`.
 
 ## Permisos
 
@@ -116,5 +133,6 @@ La primera vez que el flujo lanza `bash`, `node`, `git` o `gh`, la herramienta p
 ## Más información
 
 - [CAMBIOS.md](CAMBIOS.md): de dónde sale el paquete y qué cambia respecto al original.
+- [docs/MODELOS.md](docs/MODELOS.md): criterio de elección del modelo de cada agente y motivo por el que no se versiona.
 - [docs/MANTENIMIENTO.md](docs/MANTENIMIENTO.md): tests, prueba en un repositorio desechable y cómo publicar una versión.
 - [docs/adr/](docs/adr/) y [GLOSSARY.md](GLOSSARY.md): decisiones de diseño y vocabulario.

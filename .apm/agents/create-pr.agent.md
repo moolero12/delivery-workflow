@@ -7,6 +7,7 @@ skills:
   - create-draft
   - github-cache
   - assign-reviewers
+  - say-it-straight
 ---
 
 # Subagente: Create pull request
@@ -46,6 +47,7 @@ skills:
 - **Skill `create-draft`:** Pasa la PR a draft cuando el encargo de creación o actualización lo requiere.
 - **Skill `github-cache`:** Consulta y guarda identidades de revisores; solo se usa al gestionar una revisión.
 - **Skill `assign-reviewers`:** Verifica los logins resueltos y solicita las revisiones.
+- **Skill `say-it-straight`:** Prosa en español del cuerpo de la PR.
 
 ## 5. Manejo de Errores y Excepciones
 

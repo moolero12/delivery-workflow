@@ -31,6 +31,7 @@ case "$1 $2" in
   "label list") [[ -n "${FAKE_GH_LABELS:-}" ]] && echo "$FAKE_GH_LABELS"; exit 0 ;;
   "label create") [[ "${FAKE_GH_LABEL_DENIED:-}" == 1 ]] && exit 1; exit 0 ;;
   "pr list") [[ -n "${FAKE_GH_PR_URL:-}" ]] && echo "$FAKE_GH_PR_URL"; exit 0 ;;
+  "pr view") echo '{"number":9,"reviewDecision":"CHANGES_REQUESTED","body":"Closes #1"}'; exit 0 ;;
   "issue create") echo "https://github.com/owner/repo/issues/7"; exit 0 ;;
   "issue view") echo '{"body":"hola"}'; exit 0 ;;
   "pr create") echo "https://github.com/owner/repo/pull/9"; exit 0 ;;
@@ -190,6 +191,35 @@ status=$("${skills}/check-status/scripts/check-status.sh")
 check "check-status lee el token del .env" grep -q "^Token de GitHub: GITHUB_TOKEN en .env" <<<"$status"
 check "check-status dice la cuenta del token" grep -q "^GitHub CLI: cuenta ada" <<<"$status"
 check "check-status informa de Node" grep -q "^Node:" <<<"$status"
+check "check-status informa de la pull request" grep -q "^Pull request: #9 CHANGES_REQUESTED issue #1" <<<"$status"
+
+# check-status: la línea de modelos nunca para el script y pasa por sus tres estados.
+check "check-status avisa de que no hay agentes de Cursor" grep -q "^Modelos: sin configurar" <<<"$status"
+mkdir -p .cursor/agents
+for agent in "${package}"/.apm/agents/*.agent.md; do
+  cp "$agent" ".cursor/agents/$(basename "${agent%.agent.md}").md"
+done
+status=$("${skills}/check-status/scripts/check-status.sh")
+check "check-status dice sin configurar con agentes y sin elecciones" grep -q "^Modelos: sin configurar" <<<"$status"
+# cursor-agent falso con la lista del fixture: la prueba no depende de lo instalado ni de ninguna cuenta.
+cat >"${work}/bin/cursor-agent" <<CA
+#!/usr/bin/env bash
+cat "${package}/tests/fixtures/configure-models/cursor-agent-models.txt"
+CA
+chmod +x "${work}/bin/cursor-agent"
+check "apply funciona con un cursor-agent falso" node "${skills}/configure-models/scripts/configure-models.mjs" apply --set create-branch=composer-2.5
+status=$("${skills}/check-status/scripts/check-status.sh")
+check "check-status dice configurado" grep -q "^Modelos: configurado (cursor 8/8)" <<<"$status"
+cp "${package}/.apm/agents/create-pr.agent.md" .cursor/agents/create-pr.md
+status=$("${skills}/check-status/scripts/check-status.sh")
+check "check-status dice desincronizado" grep -q "^Modelos: desincronizado (cursor 7/8)" <<<"$status"
+check "check-status sigue entero tras la línea de modelos" grep -q "^Último commit:" <<<"$status"
+mkdir -p "${work}/solo/check-status/scripts"
+cp "${skills}/check-status/scripts/"*.sh "${work}/solo/check-status/scripts/"
+status=$("${work}/solo/check-status/scripts/check-status.sh")
+check "check-status sin la skill configure-models sigue y lo dice" grep -q "^Modelos: no se pudo comprobar" <<<"$status"
+check "check-status sin la skill configure-models llega al final" grep -q "^Sin seguimiento:" <<<"$status"
+rm -rf .cursor
 
 # Las skills lanzan sus scripts con bash o node: así una regla de permisos vale para todos.
 commands=$(grep -rhoE '`[^`]*<carpeta de esta skill>/scripts/[^`]*`' "${skills}")
@@ -226,6 +256,14 @@ check "release-version no cuenta una etiqueta con sufijo" test "$(bash "$release
 echo 'version: "1.0"' >apm.yml
 check "release-version falla sin X.Y.Z" bash -c "! bash '$release' 2>/dev/null"
 check "el workflow usa release-version" grep -q "bash .github/scripts/release-version.sh" "${package}/.github/workflows/release.yml"
+
+# say-it-straight: skill de prosa sin scripts.
+check "say-it-straight existe" test -f "${skills}/say-it-straight/SKILL.md"
+check "say-it-straight declara su name" grep -q "^name: say-it-straight" "${skills}/say-it-straight/SKILL.md"
+check "say-it-straight deja los commits en inglés fuera de alcance" grep -q "commit-changes" "${skills}/say-it-straight/SKILL.md"
+for agent in concept-developer concept-tester create-issue create-pr; do
+  check "${agent} precarga say-it-straight" grep -q -- "- say-it-straight" "${package}/.apm/agents/${agent}.agent.md"
+done
 
 echo
 if [[ $failures -eq 0 ]]; then

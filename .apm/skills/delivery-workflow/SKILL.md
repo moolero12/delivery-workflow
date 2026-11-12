@@ -1,6 +1,6 @@
 ---
 name: delivery-workflow
-description: "Orquestador del flujo de entrega: reconoce el momento (pensar la tarea, dejarla escrita, guardar un trozo, que la revisen u otra pasada) y llama al subagente o la skill que toca. Al dejar la tarea escrita arranca la rama, la pull request en draft y el ciclo de spec, código y tests. Úsala en cuanto la persona pide cualquiera de esos momentos."
+description: "Orquestador del flujo de entrega: reconoce el momento (pensar la tarea, dejarla escrita, guardar un trozo, que la revisen, cambios pedidos u otra pasada) y llama al subagente o la skill que toca. Al dejar la tarea escrita arranca la rama, la pull request en draft y el ciclo de spec, código y tests. Úsala en cuanto la persona pide cualquiera de esos momentos."
 ---
 
 # Skill: Delivery workflow
@@ -13,13 +13,13 @@ description: "Orquestador del flujo de entrega: reconoce el momento (pensar la t
 
 ## 2. Contexto y Alcance
 
-- **Cuándo actuar:** En cuanto la persona pide pensar una tarea, dejarla escrita, guardar un trozo, que la revisen u otra pasada. Para hacer cambios en un proyecto, se hacen desde una rama nueva y una pull request nueva en draft.
+- **Cuándo actuar:** En cuanto la persona pide pensar una tarea, dejarla escrita, guardar un trozo, que la revisen, cambios pedidos u otra pasada. Para hacer cambios en un proyecto, se hacen desde una rama nueva y una pull request nueva en draft, salvo los cambios pedidos sobre una PR ya abierta.
 - **Límites de conocimiento:** No ejecuta git ni llama a GitHub por su cuenta: lo hacen las skills y los subagentes. No escribe el código, la spec, el plan ni las tasks. No hace merge a la rama base. No lanza un subagente desde otro subagente.
 
 ## 3. Flujo de Trabajo (Paso a Paso)
 
 1. **Recepción:** Lee lo que pide la persona y el estado que devuelva la skill `check-status`, incluida la rama base.
-2. **Validación:** Elige un solo momento según el estado real de la tarea, no por la formulación del prompt. Si `check-status` dice que falta el token del `.env`, que GitHub lo rechaza, o que faltan `gh` o Node 20+, para antes de cualquier paso que los use. Antes de crear la issue:
+2. **Validación:** Elige un solo momento según el estado real de la tarea, no por la formulación del prompt. Si `check-status` dice que falta el token del `.env`, que GitHub lo rechaza, o que faltan `gh` o Node 20+, para antes de cualquier paso que los use. Si la línea `Modelos:` dice «sin configurar» o «desincronizado», dilo una sola vez en toda la conversación (tras `apm install` o `apm update` hay que ejecutar `/configure-models`) y sigue: nunca bloquea. Antes de crear la issue:
    - Si el problema, el resultado esperado, el alcance, cómo comprobarlo y el tipo están claros y son coherentes con el proyecto, créala y explica brevemente por qué.
    - Si quedan dudas o contradicciones, usa la skill `help-me-to-think`. No repitas entrevistas resueltas salvo cambios o decisiones nuevas.
 
@@ -41,14 +41,20 @@ description: "Orquestador del flujo de entrega: reconoce el momento (pensar la t
      12. Si la parte de arriba de la issue tiene una línea `Revisan:`, el subagente `create-pr`, encargo de revisión, con esos nombres. Si no, para con la pull request en draft y dilo: la revisión se pide con «que la revisen». La task de la fase Pull request cuyo agente es `create-pr` se marca solo cuando las revisiones quedan pedidas.
    - **Guardar un trozo:** el subagente `create-commit` con los ficheros de ese trozo y la skill `launch-push`.
    - **Que la revisen:** la persona nombra revisores. Delega la PR y los nombres en el subagente `create-pr`, encargo de revisión, y espera su resultado. Si la PR tiene issue con tasks, toma una huella nueva con `issue-spec top-hash` y marca con `issue-spec tick` la task de la fase Pull request cuyo agente es `create-pr`.
-   - **Otra pasada:** solo si la última pasada falló en la ronda 9 y la persona lo confirma en este chat con palabras propias («otra pasada», «sí, otra»). El subagente `concept-developer` actualiza la spec y el plan con el informe, y el ciclo vuelve a la ronda 1.
+   - **Cambios pedidos:** si `check-status` dice `CHANGES_REQUESTED` y nombra la issue, no abras otra issue. El cuerpo de la issue no se reescribe.
+     1. `issue-spec reviews N` deja el texto de la revisión.
+     2. El subagente `concept-developer`, ronda 0, encargo de revisión: rellena las plantillas de spec, plan y tasks solo con lo pedido y las publica con `issue-spec revision N`. Guarda la huella que devuelve.
+     3. El ciclo de la sección siguiente, con `--revision` y esa huella en cada encargo.
+     4. El subagente `create-commit` con los ficheros del ciclo y el tipo de la issue, con `Refs #N` en el pie. Después, la skill `launch-push`. Marca con `issue-spec tick N TASK-08 --expect-top HUELLA --revision` la task de `create-commit`.
+     5. El subagente `create-pr`, encargo de revisión, con los logins que pidieron cambios. Marca `TASK-09` con `--revision` cuando las revisiones queden pedidas.
+   - **Otra pasada:** solo si la última pasada falló en la ronda 9 y la persona lo confirma en este chat con palabras propias («otra pasada», «sí, otra»). El subagente `concept-developer` actualiza la spec y el plan con el informe, y el ciclo vuelve a la ronda 1. Si esa pasada era de una revisión, el encargo lleva revisión y se escribe en ese comentario, no en el cuerpo.
 4. **Formateo:** Responde con lo que hizo cada paso: número de issue y etiqueta, nombre de rama, URL de la pull request, rondas con su veredicto, mensaje del commit final y revisores pedidos.
 
 ### El ciclo
 
-Cada subagente del ciclo se lanza en limpio. El encargo lleva solo el número de la issue, la huella, la ronda, la task y, si las hay, las listas que dice cada paso. No lleva el chat ni el reporte de otro agente: todo lo que necesitan está en la issue.
+Cada subagente del ciclo se lanza en limpio. El encargo lleva solo el número de la issue, la huella, la ronda, la task y, si las hay, las listas que dice cada paso. Si es un ciclo de cambios pedidos, el encargo dice revisión: entonces `read`, `write`, `tick`, `state` y `top-hash` llevan `--revision`. No lleva el chat ni el reporte de otro agente: todo lo que necesitan está en la issue (el cuerpo, o el comentario de revisión).
 
-1. **Spec:** El subagente `concept-developer`, ronda 0. Escribe `## Spec`, `## Plan` y `## Tasks` debajo de la plantilla de la issue.
+1. **Spec:** El subagente `concept-developer`, ronda 0. En la primera entrega escribe `## Spec`, `## Plan` y `## Tasks` debajo de la plantilla de la issue. En cambios pedidos las publica con `issue-spec revision`.
 2. **Rondas:** Como máximo 9. En cada una:
    1. Si queda una task de `code-developer` sin marcar, un `code-developer` nuevo con la primera. Si no queda ninguna, no se le llama.
    2. Si al cerrar dice que la documentación ha quedado desfasada, `concept-developer` otra vez en la misma ronda, con esa lista. No gasta una ronda.
@@ -64,11 +70,13 @@ Cada subagente del ciclo se lanza en limpio. El encargo lleva solo el número de
 ## 4. Herramientas y APIs Asignadas
 
 - **Skill `help-me-to-think`:** Pensar la tarea antes de dejarla escrita.
-- **Skill `check-status`:** Saber la rama, la rama base, si hay token, `gh` y Node, y si hay cambios, antes de elegir el momento.
+- **Skill `check-status`:** Saber la rama, la rama base, si hay token, `gh` y Node, si los agentes tienen modelo (`Modelos:`), si hay cambios, y si la rama tiene PR abierta con `reviewDecision` e issue, antes de elegir el momento.
+- **Skill `configure-models`:** Elegir el modelo de cada agente con la persona. Solo la nombras si la línea `Modelos:` lo pide; la ejecuta la persona con `/configure-models`.
 - **Skill `pull-changes`:** Adelantar la rama base antes de abrir la rama de trabajo.
 - **Skill `launch-push`:** Subir la rama de trabajo después de cada commit.
 - **Skill `link-pr-to-issue`:** Enlazar la pull request con la issue y dejar `Closes #N` en el cuerpo. La llama el orquestador, no `create-pr`.
 - **Skill `issue-spec`:** La huella de la parte de arriba, las casillas, el estado y los comentarios de cada ronda.
+- **Skill `say-it-straight`:** Prosa en español en issue, spec, PR y docs del ciclo.
 - **Subagente `create-issue`:** Crear la issue con su etiqueta.
 - **Subagente `create-branch`:** Crear la rama desde la rama base.
 - **Subagente `create-commit`:** Hacer el commit vacío, el final o el de un trozo.

@@ -20,8 +20,8 @@ skills:
 
 ## 3. Flujo de Trabajo (Paso a Paso)
 
-1. **Recepción:** El encargo trae el número de la issue, la ronda y la task.
-2. **Validación:** Lee la spec y el plan con `issue-spec read`. De «Estrategia de testing» saca qué tipos aplican y con qué framework, y de «Traducción a tests» un test por escenario. Lee `docs/STYLE.md` si existe.
+1. **Recepción:** El encargo trae el número de la issue, la ronda y la task. Si es un ciclo de cambios pedidos, trae también revisión.
+2. **Validación:** Lee la spec y el plan con `issue-spec read` (con `--revision` si el encargo es de revisión). De «Estrategia de testing» saca qué tipos aplican y con qué framework, y de «Traducción a tests» un test por escenario. Lee `docs/STYLE.md` si existe.
 3. **Procesamiento:** Crea o actualiza esos tests y ejecútalos con el comando del plan, que sale de `docs/COMMANDS.md` o del manifiesto del proyecto. Si el plan propone un framework que el proyecto no tiene, añádelo como dependencia de desarrollo con el gestor del proyecto.
 4. **Formateo:** El reporte lleva la ronda, la task, el veredicto (pasa o falla), los tests escritos y las comprobaciones que han fallado.
 
