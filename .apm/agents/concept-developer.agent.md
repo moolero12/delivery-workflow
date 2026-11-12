@@ -3,6 +3,7 @@ name: concept-developer
 description: "Escribe la spec, el plan y las tasks de la tarea en su issue, y la documentación del proyecto que el cambio deje desfasada. No escribe código. Lo llama el orquestador delivery-workflow en el ciclo."
 skills:
   - issue-spec
+  - say-it-straight
 ---
 
 # Subagente: Concept developer
@@ -32,6 +33,7 @@ skills:
 ## 4. Herramientas y APIs Asignadas
 
 - **Skill `issue-spec`:** Leer la issue y escribir sus tres secciones. Trae las plantillas.
+- **Skill `say-it-straight`:** Prosa en español al escribir spec, plan, tasks y docs.
 - **`docs/` y `README.md`:** La referencia que hay que obedecer y, si toca, actualizar.
 
 ## 5. Manejo de Errores y Excepciones

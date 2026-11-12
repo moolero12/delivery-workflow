@@ -76,6 +76,7 @@ Cada subagente del ciclo se lanza en limpio. El encargo lleva solo el número de
 - **Skill `launch-push`:** Subir la rama de trabajo después de cada commit.
 - **Skill `link-pr-to-issue`:** Enlazar la pull request con la issue y dejar `Closes #N` en el cuerpo. La llama el orquestador, no `create-pr`.
 - **Skill `issue-spec`:** La huella de la parte de arriba, las casillas, el estado y los comentarios de cada ronda.
+- **Skill `say-it-straight`:** Prosa en español en issue, spec, PR y docs del ciclo.
 - **Subagente `create-issue`:** Crear la issue con su etiqueta.
 - **Subagente `create-branch`:** Crear la rama desde la rama base.
 - **Subagente `create-commit`:** Hacer el commit vacío, el final o el de un trozo.

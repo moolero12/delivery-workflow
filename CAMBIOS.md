@@ -26,6 +26,7 @@ Estos cambios las juntan en un paquete APM que se instala en cualquier proyecto,
 | `MCPS/github-mcp-server/mcp.txt` | — | Se quita. El paquete no usa el MCP de GitHub: todo va por `gh` con el token del `.env` ([ADR 0007](docs/adr/0007-el-token-sale-del-env.md)). |
 | — | `.apm/skills/<skill>/scripts/gh.sh` | Nuevo, igual en cada skill que llama a GitHub: lanza `gh` con el `GITHUB_TOKEN` del `.env`. |
 | — | `.apm/skills/issue-spec/` | Nueva: lee y escribe la spec en la issue. |
+| — | `.apm/skills/say-it-straight/` | Nueva: prosa en español declarativa para issue, spec, PR y docs; sin copiar skills externas ([ADR 0011](docs/adr/0011-say-it-straight.md)). |
 | — | `apm.yml`, `README.md`, `CAMBIOS.md`, `GLOSSARY.md`, `docs/MANTENIMIENTO.md`, `docs/adr/`, `tests/`, `.github/` | Manifiesto, documentación, tests y publicación del paquete. |
 
 ## Plantilla de git

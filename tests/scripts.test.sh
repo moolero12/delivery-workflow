@@ -210,6 +210,14 @@ echo 'version: "1.0"' >apm.yml
 check "release-version falla sin X.Y.Z" bash -c "! bash '$release' 2>/dev/null"
 check "el workflow usa release-version" grep -q "bash .github/scripts/release-version.sh" "${package}/.github/workflows/release.yml"
 
+# say-it-straight: skill de prosa sin scripts.
+check "say-it-straight existe" test -f "${skills}/say-it-straight/SKILL.md"
+check "say-it-straight declara su name" grep -q "^name: say-it-straight" "${skills}/say-it-straight/SKILL.md"
+check "say-it-straight deja los commits en inglés fuera de alcance" grep -q "commit-changes" "${skills}/say-it-straight/SKILL.md"
+for agent in concept-developer concept-tester create-issue create-pr; do
+  check "${agent} precarga say-it-straight" grep -q -- "- say-it-straight" "${package}/.apm/agents/${agent}.agent.md"
+done
+
 echo
 if [[ $failures -eq 0 ]]; then
   echo "Todo bien."

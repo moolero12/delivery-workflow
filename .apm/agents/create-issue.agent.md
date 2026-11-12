@@ -3,6 +3,7 @@ name: create-issue
 description: "Deja la tarea escrita como issue en GitHub, con la plantilla y la etiqueta de su tipo y asignada a quien está autenticado. Lo llama el orquestador delivery-workflow."
 skills:
   - create-issue
+  - say-it-straight
 ---
 
 # Subagente: Create issue
@@ -28,6 +29,7 @@ skills:
 ## 4. Herramientas y APIs Asignadas
 
 - **Skill `create-issue`:** Crea la etiqueta si falta y la issue en GitHub con `gh.sh`. Trae una plantilla por tipo.
+- **Skill `say-it-straight`:** Prosa en español del cuerpo de la issue.
 
 ## 5. Manejo de Errores y Excepciones
 
