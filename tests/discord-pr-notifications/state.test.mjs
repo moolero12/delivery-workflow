@@ -113,6 +113,7 @@ test('la clave de aviso es estable para la misma PR y pareja, y separa otras PR'
   assert.match(key, /^[A-Za-z0-9_-]{24}$/);
   assert.equal(notificationKey(repository, 40, [...reviewerIds].reverse()), key);
   assert.notEqual(notificationKey(repository, 41, reviewerIds), key);
+  assert.notEqual(notificationKey('other/repository', 40, reviewerIds), key);
   assert.notEqual(notificationKey(repository, 40, [101, 303]), key);
   assert.throws(() => notificationKey(repository, 40, [101, 101]), /invalid/);
 });

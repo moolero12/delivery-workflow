@@ -1,0 +1,25 @@
+name: Discord PR notification trigger
+
+on:
+  pull_request:
+    branches: [staging]
+    types: [opened, review_requested, ready_for_review]
+
+permissions: {}
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      # Solo se guarda el número; el emisor verificará la PR antes de usar secretos.
+      - name: Save PR number
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          mkdir -p pr-event
+          printf '%s' "$PR_NUMBER" > pr-event/pr-number
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: discord-pr-number
+          path: pr-event/pr-number
+          retention-days: 1

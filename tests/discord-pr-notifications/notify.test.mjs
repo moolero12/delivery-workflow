@@ -68,10 +68,20 @@ test('el mensaje contiene resumen y enlace sin menciones suministradas por la PR
   const message = buildMessage('owner/repo', {
     number: 40, title: '@everyone **New**', body: 'Please <@999999999999999999> review',
   }, [aliceId, bobId]);
+  assert.match(message, /^\*\*Repositorio: owner\/repo\*\*\n/);
   assert.match(message, /New/);
   assert.match(message, /https:\/\/github\.com\/owner\/repo\/pull\/40/);
   assert.match(message, new RegExp(`<@${aliceId}> <@${bobId}>`));
   assert.doesNotMatch(message, /@everyone|<@999999999999999999>/);
+});
+
+test('la cabecera distingue los dos repositorios en el mismo canal', () => {
+  const pr = { number: 42, title: 'Review this', body: 'Brief summary' };
+  const packageMessage = buildMessage('venturars/delivery-workflow', pr, [aliceId, bobId]);
+  const appMessage = buildMessage('venturars/aTempo', pr, [aliceId, bobId]);
+  assert.match(packageMessage, /^\*\*Repositorio: venturars\/delivery-workflow\*\*/);
+  assert.match(appMessage, /^\*\*Repositorio: venturars\/aTempo\*\*/);
+  assert.notEqual(packageMessage, appMessage);
 });
 
 test('publica una vez con las dos menciones y registra el aviso tras Discord', async (t) => {

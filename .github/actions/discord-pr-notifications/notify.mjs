@@ -54,7 +54,8 @@ export function buildMessage(repository, pr, discordIds) {
   const title = plainText(pr.title, 120);
   const description = plainText(pr.body, 180);
   const link = `https://github.com/${repository}/pull/${pr.number}`;
-  return `**PR para revisar:** ${title || `#${pr.number}`}\n` +
+  // El repositorio validado identifica el origen de los avisos del mismo canal.
+  return `**Repositorio: ${repository}**\n**PR para revisar:** ${title || `#${pr.number}`}\n` +
     (description ? `${description}\n` : '') +
     `Revisores: <@${discordIds[0]}> <@${discordIds[1]}>\n${link}`;
 }

@@ -10,12 +10,12 @@ Desde la raíz del repositorio:
 node --test tests/*.mjs
 node --test tests/discord-pr-notifications/*.test.mjs
 bash tests/scripts.test.sh
-apm audit
+apm audit --ci
 ```
 
 Los tests usan un `gh` falso, un remoto local y respuestas HTTP simuladas: no tocan GitHub ni Discord. El audit comprueba la integridad de los archivos del paquete.
 
-La acción opcional de avisos de PR y los dos workflows de ejemplo se describen en [DISCORD-PR-NOTIFICATIONS.md](DISCORD-PR-NOTIFICATIONS.md). APM no instala workflows de GitHub en los proyectos; aTempo los incorporará en una PR propia después de publicar la versión.
+El aviso de PR de este repositorio, la acción compartida y los dos workflows de ejemplo para aTempo se describen en [DISCORD-PR-NOTIFICATIONS.md](DISCORD-PR-NOTIFICATIONS.md). APM no instala workflows de GitHub en los proyectos; aTempo los incorporará en una PR propia después de publicar la versión.
 
 ## Probar el paquete
 
