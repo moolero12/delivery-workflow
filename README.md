@@ -13,6 +13,8 @@ Paquete [APM](https://github.com/microsoft/apm) para **Claude Code, Cursor y Cod
 
 Solo se para si a la spec le falta un dato, si aparece un secreto o si falla la novena ronda.
 
+El repositorio también ofrece una [acción compuesta opcional para avisos de revisión en Discord](docs/DISCORD-PR-NOTIFICATIONS.md). Se invoca desde workflows del proyecto tras publicar la versión; APM no instala esos workflows.
+
 ## Requisitos
 
 - Un proyecto con git y un remoto `origin` en GitHub en el que puedas escribir.
