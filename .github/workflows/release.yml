@@ -1,5 +1,7 @@
 # Cada pull request a main comprueba que la versión de apm.yml se puede publicar.
-# Cada push a main crea la etiqueta vX.Y.Z y su release con las notas de GitHub.
+# Si nadie la ha subido, la IA de GitHub Models decide si el cambio es major, minor o patch,
+# sube la versión en apm.yml con un commit chore: release X.Y.Z y lo explica en la PR.
+# Cada push a main crea la etiqueta vX.Y.Z y su release con un resumen de la IA y las notas de GitHub.
 name: Release
 
 on:
@@ -8,18 +10,72 @@ on:
   push:
     branches: [main]
 
+env:
+  MODELO_IA: openai/gpt-4.1
+
 jobs:
   version:
     name: Comprobar la versión
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
+      models: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.head_ref }}
           fetch-depth: 0
-      - run: bash .github/scripts/release-version.sh
+
+      - name: Comprobar la versión de apm.yml
+        id: comprobar
+        run: |
+          if bash .github/scripts/release-version.sh; then
+            echo "valida=si" >> "$GITHUB_OUTPUT"
+          else
+            echo "valida=no" >> "$GITHUB_OUTPUT"
+          fi
+
+      # La IA no puede subir commits a una PR que viene de un fork: ahí la versión se sube a mano.
+      - name: Pedir la versión a mano en las PR de un fork
+        if: steps.comprobar.outputs.valida == 'no' && github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          echo "Esta pull request viene de un fork. Sube version en apm.yml con un commit chore: release X.Y.Z." >&2
+          exit 1
+
+      - name: Decidir la versión con IA
+        if: steps.comprobar.outputs.valida == 'no' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/release-ia.sh
+
+      - name: Subir la versión en apm.yml y explicarlo en la PR
+        if: steps.comprobar.outputs.valida == 'no' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RAMA: ${{ github.head_ref }}
+        run: |
+          version=$(cat ia-version.txt)
+          sed -i -E "0,/^version:/s/^version:.*/version: \"${version}\"/" apm.yml
+          bash .github/scripts/release-version.sh
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apm.yml
+          git commit -m "chore: release ${version}"
+          git push origin "HEAD:${RAMA}"
+
+          {
+            echo "🤖 La IA ha elegido la versión **${version}**: cambio **$(cat ia-tipo.txt)**."
+            echo
+            echo "**Motivo:** $(cat ia-motivo.txt)"
+            echo
+            echo "He subido \`version\` en \`apm.yml\` con el commit \`chore: release ${version}\`. Si no estás de acuerdo, cambia la versión en \`apm.yml\` antes de mergear."
+          } > comentario.md
+          gh pr comment "$PR_NUMBER" --body-file comentario.md
 
   release:
     name: Etiqueta y release
@@ -27,13 +83,32 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      models: read
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Crear la etiqueta y la release
         env:
           GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           version=$(bash .github/scripts/release-version.sh)
-          gh release create "v${version}" --target "$GITHUB_SHA" --title "v${version}" --generate-notes
+
+          # El resumen es un extra: si la IA falla, la release se crea igual.
+          bash .github/scripts/release-ia.sh || true
+          ultima=$(cat ia-ultima.txt 2>/dev/null || true)
+          {
+            echo "## Resumen"
+            echo
+            if [ -s ia-resumen.md ]; then cat ia-resumen.md; else echo "Sin resumen automático."; fi
+            echo
+          } > notas.md
+
+          gh release create "v${version}" \
+            --target "$GITHUB_SHA" \
+            --title "v${version}" \
+            --notes-file notas.md \
+            --generate-notes \
+            ${ultima:+--notes-start-tag "v${ultima}"}
