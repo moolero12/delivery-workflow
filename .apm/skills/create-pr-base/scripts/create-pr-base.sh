@@ -50,8 +50,6 @@ title=$2
 body=$3
 type=$4
 
-bash "${here}/check-title.sh" "$title" >/dev/null || exit 1
-
 if [[ ! -f "$body" || ! -r "$body" ]]; then
   echo "El fichero del cuerpo debe existir y ser legible." >&2
   exit 1
@@ -76,6 +74,14 @@ if [[ -n "$existing" ]]; then
   echo "La pull request de ${branch} hacia ${base} ya existía: ${existing}"
   echo "No se ha tocado su cuerpo."
   exit 0
+fi
+
+# El título y el cuerpo se comprueban después de buscar la PR: una PR abierta antes de estas reglas se sigue encontrando.
+bash "${here}/check-title.sh" "$title" >/dev/null || exit 1
+
+if grep -Eq '#[0-9]' "$body"; then
+  echo "El cuerpo no nombra la issue: deja «Closes #» sin número, lo completa link-pr-to-issue." >&2
+  exit 1
 fi
 
 label_args=()
