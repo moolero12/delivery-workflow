@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "tiers": {
+    "heavy": "Pesado: el modelo más capaz que tengas.",
+    "standard": "Estándar: buen equilibrio entre calidad y coste.",
+    "light": "Ligero: el más rápido y barato."
+  },
+  "agents": {
+    "concept-developer": {
+      "tier": "heavy",
+      "why": "Escribe la spec y el plan: un fallo se repite en todas las rondas."
+    },
+    "code-developer": {
+      "tier": "standard",
+      "why": "Escribe código a partir de una spec clara."
+    },
+    "code-tester": {
+      "tier": "standard",
+      "why": "Convierte los escenarios de la spec en tests."
+    },
+    "concept-tester": {
+      "tier": "standard",
+      "why": "Compara la documentación con el código en cada ronda: un modelo débil da falsos aprobados."
+    },
+    "create-issue": {
+      "tier": "light",
+      "why": "Rellena una plantilla y lanza scripts."
+    },
+    "create-pr": {
+      "tier": "light",
+      "why": "Rellena una plantilla y lanza scripts."
+    },
+    "create-branch": {
+      "tier": "light",
+      "why": "Un script, sin criterio."
+    },
+    "create-commit": {
+      "tier": "light",
+      "why": "Uno o dos scripts, sin criterio."
+    }
+  },
+  "tools": {
+    "cursor": {
+      "name": "Cursor",
+      "agentsDir": ".cursor/agents",
+      "extension": "md",
+      "patterns": {
+        "heavy": [
+          "^claude-.*opus",
+          "^gpt-5(\\.\\d+)?-high$",
+          "^composer"
+        ],
+        "standard": [
+          "^claude-.*sonnet",
+          "^gpt-5(\\.\\d+)?$",
+          "^composer"
+        ],
+        "light": [
+          "^claude-.*haiku",
+          "(^|[-_.])mini($|[-_.])",
+          "^composer"
+        ]
+      }
+    },
+    "claude": {
+      "name": "Claude Code",
+      "agentsDir": ".claude/agents",
+      "extension": "md",
+      "aliases": [
+        "opus",
+        "sonnet",
+        "haiku"
+      ],
+      "patterns": {
+        "heavy": [
+          "^opus$",
+          "^claude-.*opus",
+          "^sonnet$",
+          "^claude-.*sonnet"
+        ],
+        "standard": [
+          "^sonnet$",
+          "^claude-.*sonnet",
+          "^opus$",
+          "^claude-.*opus",
+          "^haiku$"
+        ],
+        "light": [
+          "^haiku$",
+          "^claude-.*haiku",
+          "^sonnet$",
+          "^claude-.*sonnet"
+        ]
+      }
+    },
+    "codex": {
+      "name": "Codex",
+      "agentsDir": ".codex/agents",
+      "extension": "toml",
+      "patterns": {
+        "heavy": [
+          "^gpt-[\\d.]+-codex$",
+          "^gpt-[\\d.]+$"
+        ],
+        "standard": [
+          "^gpt-[\\d.]+-codex$",
+          "^gpt-[\\d.]+$"
+        ],
+        "light": [
+          "(^|[-_.])mini($|[-_.])",
+          "^gpt-[\\d.]+-codex$",
+          "^gpt-[\\d.]+$"
+        ]
+      }
+    }
+  }
+}

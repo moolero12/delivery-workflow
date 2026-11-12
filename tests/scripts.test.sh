@@ -31,6 +31,7 @@ case "$1 $2" in
   "label list") [[ -n "${FAKE_GH_LABELS:-}" ]] && echo "$FAKE_GH_LABELS"; exit 0 ;;
   "label create") [[ "${FAKE_GH_LABEL_DENIED:-}" == 1 ]] && exit 1; exit 0 ;;
   "pr list") exit 0 ;;
+  "pr view") echo '{"number":9,"reviewDecision":"CHANGES_REQUESTED","body":"Closes #1"}'; exit 0 ;;
   "issue view") echo '{"body":"hola"}'; exit 0 ;;
   "pr create") echo "https://github.com/owner/repo/pull/9"; exit 0 ;;
   "api user") [[ "$*" == *--include* ]] && printf 'HTTP/2.0 200 OK\netag: "u"\n\n{"login":"ada"}\n' || echo ada; exit 0 ;;
@@ -74,7 +75,19 @@ mv env.bak .env
 git rm -q --cached .gitignore && mv .gitignore gitignore.bak
 check "con el .env fuera de .gitignore, gh.sh falla" bash -c "! bash '$ghsh' repo view 2>/dev/null"
 mv gitignore.bak .gitignore && git add .gitignore
+printf 'GITHUB_TOKEN=token-con-comentario  # mi token\n' >.env
+bash "$ghsh" repo view >/dev/null 2>&1
+check "gh.sh quita un comentario detrás del token" test "$(cat "$FAKE_GH_TOKEN")" = token-con-comentario
+printf 'GITHUB_TOKEN="token-entre-comillas" # mi token\n' >.env
+bash "$ghsh" repo view >/dev/null 2>&1
+check "gh.sh quita un comentario detrás de las comillas" test "$(cat "$FAKE_GH_TOKEN")" = token-entre-comillas
 echo "GITHUB_TOKEN=token-del-env" >.env
+check "gh.sh deja el token para GitHub Enterprise" test "$(bash -c "source '$ghsh'; load_github_token; echo \$GH_ENTERPRISE_TOKEN")" = token-del-env
+git worktree add -q "${work}/worktree" -b worktree-test 2>/dev/null
+check "en un worktree, gh.sh usa el .env de la copia principal" bash -c "cd '${work}/worktree' && bash '$ghsh' repo view"
+check "en un worktree, el token es el del .env" test "$(cat "$FAKE_GH_TOKEN")" = token-del-env
+git worktree remove --force "${work}/worktree"
+git branch -q -D worktree-test
 for copy in "${skills}"/*/scripts/gh.sh; do
   check "gh.sh es igual en $(basename "$(dirname "$(dirname "$copy")")")" cmp -s "$ghsh" "$copy"
 done
@@ -124,12 +137,42 @@ check "git no ve la caché" test -z "$(git status --porcelain)"
 # issue-spec: lee la issue con el token del .env.
 check "issue-spec lee la issue" test "$(node "${skills}/issue-spec/scripts/issue-spec.mjs" read 1)" = hola
 check "issue-spec usa el token del .env" test "$(cat "$FAKE_GH_TOKEN")" = token-del-env
+check "ISSUE_SPEC_GH no salta gh.sh" test "$(ISSUE_SPEC_GH=/usr/bin/false node "${skills}/issue-spec/scripts/issue-spec.mjs" read 1)" = hola
 
 # check-status: informa del token del .env, de su cuenta y de Node.
 status=$("${skills}/check-status/scripts/check-status.sh")
 check "check-status lee el token del .env" grep -q "^Token de GitHub: GITHUB_TOKEN en .env" <<<"$status"
 check "check-status dice la cuenta del token" grep -q "^GitHub CLI: cuenta ada" <<<"$status"
 check "check-status informa de Node" grep -q "^Node:" <<<"$status"
+check "check-status informa de la pull request" grep -q "^Pull request: #9 CHANGES_REQUESTED issue #1" <<<"$status"
+
+# check-status: la línea de modelos nunca para el script y pasa por sus tres estados.
+check "check-status avisa de que no hay agentes de Cursor" grep -q "^Modelos: sin configurar" <<<"$status"
+mkdir -p .cursor/agents
+for agent in "${package}"/.apm/agents/*.agent.md; do
+  cp "$agent" ".cursor/agents/$(basename "${agent%.agent.md}").md"
+done
+status=$("${skills}/check-status/scripts/check-status.sh")
+check "check-status dice sin configurar con agentes y sin elecciones" grep -q "^Modelos: sin configurar" <<<"$status"
+# cursor-agent falso con la lista del fixture: la prueba no depende de lo instalado ni de ninguna cuenta.
+cat >"${work}/bin/cursor-agent" <<CA
+#!/usr/bin/env bash
+cat "${package}/tests/fixtures/configure-models/cursor-agent-models.txt"
+CA
+chmod +x "${work}/bin/cursor-agent"
+check "apply funciona con un cursor-agent falso" node "${skills}/configure-models/scripts/configure-models.mjs" apply --set create-branch=composer-2.5
+status=$("${skills}/check-status/scripts/check-status.sh")
+check "check-status dice configurado" grep -q "^Modelos: configurado (cursor 8/8)" <<<"$status"
+cp "${package}/.apm/agents/create-pr.agent.md" .cursor/agents/create-pr.md
+status=$("${skills}/check-status/scripts/check-status.sh")
+check "check-status dice desincronizado" grep -q "^Modelos: desincronizado (cursor 7/8)" <<<"$status"
+check "check-status sigue entero tras la línea de modelos" grep -q "^Último commit:" <<<"$status"
+mkdir -p "${work}/solo/check-status/scripts"
+cp "${skills}/check-status/scripts/"*.sh "${work}/solo/check-status/scripts/"
+status=$("${work}/solo/check-status/scripts/check-status.sh")
+check "check-status sin la skill configure-models sigue y lo dice" grep -q "^Modelos: no se pudo comprobar" <<<"$status"
+check "check-status sin la skill configure-models llega al final" grep -q "^Sin seguimiento:" <<<"$status"
+rm -rf .cursor
 
 # Las skills lanzan sus scripts con bash o node: así una regla de permisos vale para todos.
 commands=$(grep -rhoE '`[^`]*<carpeta de esta skill>/scripts/[^`]*`' "${skills}")

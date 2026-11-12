@@ -20,8 +20,8 @@ skills:
 
 ## 3. Flujo de Trabajo (Paso a Paso)
 
-1. **Recepción:** El encargo trae el número de la issue, la ronda y la task. No trae el chat ni el reporte de otro agente.
-2. **Validación:** Lee los documentos del proyecto que existan: `docs/CONSTITUTION.md`, `docs/STYLE.md`, `docs/ARCHITECTURE.md` y `docs/COMMANDS.md`. Lee la spec, el plan y las tasks con `issue-spec read`.
+1. **Recepción:** El encargo trae el número de la issue, la ronda y la task. Si es un ciclo de cambios pedidos, trae también revisión.
+2. **Validación:** Lee los documentos del proyecto que existan: `docs/CONSTITUTION.md`, `docs/STYLE.md`, `docs/ARCHITECTURE.md` y `docs/COMMANDS.md`. Lee la spec, el plan y las tasks con `issue-spec read` (con `--revision` si el encargo es de revisión).
 3. **Procesamiento:** Implementa únicamente la task de la ronda. Si la task es el linter o el formateador, ejecútalos sobre el código tocado con el comando del proyecto.
 4. **Formateo:** Lista los ficheros de código que has cambiado y di qué documentación ha quedado desfasada. No la reescribas. No declares la spec como pasada.
 

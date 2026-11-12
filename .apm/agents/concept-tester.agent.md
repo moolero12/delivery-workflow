@@ -20,8 +20,8 @@ skills:
 
 ## 3. Flujo de Trabajo (Paso a Paso)
 
-1. **Recepción:** El encargo trae el número de la issue, la ronda y la task.
-2. **Validación:** Lee la spec y el plan con `issue-spec read`: «Documentos que mandan» de la spec y «Comprobación de concepto» del plan.
+1. **Recepción:** El encargo trae el número de la issue, la ronda y la task. Si es un ciclo de cambios pedidos, trae también revisión.
+2. **Validación:** Lee la spec y el plan con `issue-spec read` (con `--revision` si el encargo es de revisión): «Documentos que mandan» de la spec y «Comprobación de concepto» del plan.
 3. **Procesamiento:** Compara esas frases con el código y, si existe, con el objetivo de `docs/CONSTITUTION.md`. No ejecutes el producto para reescribirlo. Señala la frase y el fichero que no coinciden.
 4. **Formateo:** El reporte lleva la ronda, la task, el veredicto (pasa o falla) y las comprobaciones que han fallado.
 

@@ -5,7 +5,7 @@ El paquete lleva una tarea desde que se piensa hasta que se pide su revisión: l
 ## Momentos
 
 **Momento**:
-Cada punto del trabajo en el que el orquestador interviene. Hay cinco: pensar la tarea, dejarla escrita, guardar un trozo, que la revisen y otra pasada.
+Cada punto del trabajo en el que el orquestador interviene. Hay seis: pensar la tarea, dejarla escrita, guardar un trozo, que la revisen, cambios pedidos y otra pasada.
 _Evitar_: paso, fase, etapa
 
 **Pensar la tarea**:
@@ -19,6 +19,12 @@ Momento en que una parte del trabajo queda en un commit y en el remoto, a petici
 
 **Que la revisen**:
 Momento en que la pull request recibe revisores y sale de draft.
+
+**Cambios pedidos**:
+Momento en que la pull request abierta tiene `CHANGES_REQUESTED`. Spec, plan y tasks van en un comentario de la issue y se repite el ciclo.
+
+**Revisión** (comentario):
+El comentario de la issue que empieza por `<!-- Revisión N -->` y lleva las plantillas de spec, plan y tasks de lo que pidió la persona revisora.
 
 **Otra pasada**:
 Momento en que la persona confirma que el ciclo vuelve a empezar después de que la novena ronda falle.
@@ -107,3 +113,8 @@ _Evitar_: ronda (es del ciclo)
 **Documentos que mandan**:
 Los ficheros de documentación del proyecto que el cambio tiene que obedecer y contra los que se compara el código.
 _Evitar_: referencias, fuentes
+
+## Modelos
+
+**Nivel**:
+Grado de exigencia de la tarea de un agente: pesado, estándar o ligero. Cada herramienta determina qué modelo, entre los disponibles, corresponde a cada nivel.

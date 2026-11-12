@@ -77,12 +77,13 @@ fi
 
 source "$(dirname "${BASH_SOURCE[0]}")/gh.sh"
 token=no
-if token_error=$(load_github_token 2>&1); then
-  load_github_token
+token_error=$(mktemp)
+trap 'rm -f "$token_error"' EXIT
+if load_github_token 2>"$token_error"; then
   token=yes
   echo "Token de GitHub: GITHUB_TOKEN en .env"
 else
-  echo "Token de GitHub: ${token_error}"
+  echo "Token de GitHub: $(cat "$token_error")"
 fi
 
 if ! command -v gh >/dev/null 2>&1; then
@@ -106,6 +107,14 @@ else
   fi
 fi
 
+# Modelos de los agentes. Nunca para el script: si algo falla, se dice y se sigue.
+models_script="$(dirname "${BASH_SOURCE[0]}")/../../configure-models/scripts/configure-models.mjs"
+models=""
+if [[ -f "$models_script" ]] && command -v node >/dev/null 2>&1; then
+  models=$(node "$models_script" status 2>/dev/null) || models=""
+fi
+echo "Modelos: ${models:-no se pudo comprobar (falta Node o la skill configure-models)}"
+
 if upstream=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null); then
   counts=$(git rev-list --left-right --count "HEAD...${upstream}")
   ahead=${counts%%[[:space:]]*}
@@ -119,6 +128,23 @@ if git rev-parse --verify HEAD >/dev/null 2>&1; then
   echo "Último commit: $(git log -1 --pretty=format:'%h %s')"
 else
   echo "Último commit: todavía no hay commits"
+fi
+
+if [[ "$token" == yes ]] && command -v gh >/dev/null 2>&1; then
+  pr_json=$(gh pr view --json number,reviewDecision,body 2>/dev/null || true)
+  if echo "$pr_json" | grep -q '"number"'; then
+    pr_line=$(printf '%s' "$pr_json" | node -e '
+      const fs = require("fs");
+      const p = JSON.parse(fs.readFileSync(0, "utf8"));
+      const body = p.body || "";
+      const match = body.match(/(?:closes|close|closed|fix|fixes|fixed|resolve|resolves|resolved)\s+#(\d+)/i);
+      const decision = p.reviewDecision || "—";
+      process.stdout.write("#" + p.number + " " + decision + (match ? " issue #" + match[1] : ""));
+    ')
+    echo "Pull request: ${pr_line}"
+  else
+    echo "Pull request: ninguna abierta en esta rama"
+  fi
 fi
 
 echo

@@ -58,6 +58,7 @@ Estos cambios las juntan en un paquete APM que se instala en cualquier proyecto,
 - **Documentos del proyecto.** Los agentes leen los que existan (`README.md`, `AGENTS.md`, `docs/CONSTITUTION.md`, `docs/ARCHITECTURE.md`, `docs/STYLE.md`, `docs/COMMANDS.md`) y no crean los que faltan. Los comandos salen de `docs/COMMANDS.md` o del manifiesto del proyecto. Se quitan `skills/python-docs`, Black, Ruff y el puerto 8000.
 - **Secretos.** La «llave» de ChromaDB pasa a una regla general: si un subagente encuentra una credencial en un fichero que toca o necesita una para seguir, el ciclo para sin commit ni revisión y nombra el fichero, no el valor.
 - **Al terminar.** «Para lo que hayas arrancado» deja de ser el servidor de Chroma: cualquier servidor, navegador o proceso que el ciclo arrancó se para antes del informe.
+- **Cambios pedidos en un comentario.** Si la pull request tiene `CHANGES_REQUESTED`, spec, plan y tasks van en un comentario `<!-- Revisión N -->` con las plantillas de siempre.
 - **Huecos.** Como en ChromaDB, `concept-developer` marca como hueco lo que el proyecto no responde y para. Aquí el orquestador pregunta a la persona y lo vuelve a llamar con las respuestas antes de la ronda 1.
 - **Sin aprobación humana.** Como en ChromaDB, el ciclo no espera a que nadie apruebe la spec ([ADR 0004](docs/adr/0004-el-ciclo-corre-sin-aprobacion-humana.md)).
 - **Commit final.** Como en ChromaDB, un solo commit con los ficheros del ciclo al terminar, con el desglose y el pie de `commit-changes` (`Refs #N`).

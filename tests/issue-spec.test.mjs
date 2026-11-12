@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   parseBody, hashTop, replaceSections, tickTask, setState, findSecret, run, MAX_BODY,
+  isRevisionComment, latestRevision, nextRevisionNumber, ensureRevisionHeader, formatReviewNotes,
 } from "../.apm/skills/issue-spec/scripts/issue-spec.mjs";
 
 const TOP = "## Qué hay que hacer\n\nAlgo.\n\n## Cómo probarlo\n\n1. Mirar.\n\nRevisan: Ada";
@@ -85,4 +86,85 @@ test("run read --section devuelve una sección", async () => {
   const call = async () => JSON.stringify({ body: BODY });
   assert.equal(await run(["read", "7", "--section", "top"], { run: call }), TOP);
   assert.equal(await run(["top-hash", "7"], { run: call }), hashTop(TOP));
+});
+
+const REV_TOP = "<!-- Revisión 1 -->";
+const REV_BODY = `${REV_TOP}\n\n## Spec\n\n> Estado: **Borrador** · Creada: 2026-11-11 · Aprobada: —\n\n## Tasks\n\n- [ ] **TASK-01:** Uno\n`;
+
+test("un comentario de revisión se reconoce por la primera línea", () => {
+  assert.equal(isRevisionComment(REV_BODY), true);
+  assert.equal(isRevisionComment(BODY), false);
+  assert.equal(nextRevisionNumber([{ body: REV_BODY }]), 2);
+  assert.equal(latestRevision([{ body: BODY }, { body: REV_BODY, id: 9 }]).id, 9);
+});
+
+test("ensureRevisionHeader no duplica la marca", () => {
+  assert.match(ensureRevisionHeader("## Spec\n\nHola", 1), /^<!-- Revisión 1 -->/);
+  assert.equal(ensureRevisionHeader(REV_BODY, 9).startsWith(REV_TOP), true);
+});
+
+test("tick en un comentario de revisión no usa el cuerpo de la issue", () => {
+  const next = tickTask(REV_BODY, "TASK-01", hashTop(REV_TOP));
+  assert.ok(next.includes("- [x] **TASK-01:**"));
+  assert.ok(next.startsWith(REV_TOP));
+  assert.throws(() => tickTask(REV_BODY, "TASK-01", hashTop(TOP)), { code: 3 });
+});
+
+test("formatReviewNotes junta reviews y comentarios de línea", () => {
+  const text = formatReviewNotes({
+    reviewDecision: "CHANGES_REQUESTED",
+    reviews: [{ author: { login: "ada" }, state: "CHANGES_REQUESTED", body: "Cambia el nombre." }],
+    lineComments: [{ user: { login: "ada" }, path: "src/a.js", line: 3, body: "aquí" }],
+  });
+  assert.match(text, /CHANGES_REQUESTED/);
+  assert.match(text, /Cambia el nombre/);
+  assert.match(text, /src\/a.js:3/);
+});
+
+test("run write --revision parchea el comentario y no el cuerpo", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "issue-spec-rev-"));
+  const plan = join(dir, "plan.md");
+  await writeFile(plan, "## Plan\n\nNuevo");
+  const calls = [];
+  let patched;
+  const call = async (args) => {
+    calls.push(args);
+    if (args[0] === "api" && String(args[1]).includes("/comments") && !String(args[1]).includes("/comments/")) {
+      return JSON.stringify([{ id: 44, body: REV_BODY }]);
+    }
+    if (args[0] === "api" && args.includes("PATCH")) {
+      const { readFile } = await import("node:fs/promises");
+      patched = JSON.parse(await readFile(args[args.indexOf("--input") + 1], "utf8")).body;
+      return "{}";
+    }
+    return "";
+  };
+  const output = await run(
+    ["write", "7", "--expect-top", hashTop(REV_TOP), "--revision", "--plan", plan],
+    { run: call },
+  );
+  assert.match(output, /plan escritas/);
+  assert.equal(parseBody(patched).sections.plan, "Nuevo");
+  assert.equal(parseBody(patched).top, REV_TOP);
+  assert.ok(!calls.some((args) => args[1] === "edit"));
+});
+
+test("run revision publica el comentario con la marca", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "issue-spec-rev2-"));
+  const file = join(dir, "rev.md");
+  await writeFile(file, "## Spec\n\n> Estado: **Borrador** · Creada: 2026-11-11 · Aprobada: —\n");
+  let posted;
+  const call = async (args) => {
+    if (args[0] === "api") return "[]";
+    if (args[1] === "comment") {
+      const { readFile } = await import("node:fs/promises");
+      posted = await readFile(args[args.indexOf("--body-file") + 1], "utf8");
+      return "";
+    }
+    return "";
+  };
+  const output = await run(["revision", "7", file], { run: call });
+  assert.match(output, /revisión 1 publicada/);
+  assert.match(output, /Huella:/);
+  assert.ok(posted.startsWith("<!-- Revisión 1 -->"));
 });

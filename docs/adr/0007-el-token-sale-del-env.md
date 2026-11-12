@@ -9,7 +9,9 @@ Se descartó un token compartido del proyecto: la issue, la pull request y las a
 ## Consecuencias
 
 - `gh.sh` nunca usa la sesión de `gh` ni las variables del entorno: si falta el `.env`, falta `GITHUB_TOKEN` o el `.env` no está ignorado, falla sin llamar a GitHub. `gh` no necesita `gh auth login`.
-- `gh.sh` lee el `.env` línea a línea y no lo ejecuta.
+- `gh.sh` lee el `.env` línea a línea y no lo ejecuta. Acepta `export`, comillas y un comentario `# …` detrás del valor.
+- En un worktree sin `.env`, `gh.sh` usa el de la copia principal del repositorio.
+- `gh.sh` deja el token también en `GH_ENTERPRISE_TOKEN`, que es el que `gh` usa cuando `GH_HOST` no es github.com.
 - `check-status` dice de qué cuenta es el token. El orquestador para si falta o GitHub lo rechaza.
 - `gh.sh` se copia igual en cada skill que llama a GitHub, porque cada carpeta de skill viaja sola. Un test comprueba que las copias son iguales.
 - La instalación ya no escribe ningún token en la configuración de las herramientas: sobran `env -u GITHUB_TOKEN`, la comprobación de tokens y la cabecera `X-MCP-Features` de Cursor.
