@@ -162,11 +162,19 @@ test('omite las PR con menos de dos revisores', () => {
   }
 });
 
-test('exige dos revisores solicitados y distintos al publicar', () => {
+test('admite tres o más revisores solicitados y distintos', () => {
+  const pullRequest = validPullRequest();
+  pullRequest.requested_reviewers.push({ id: 30, login: 'third-reviewer' });
+  const result = runVerifier({ pullRequest });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.output, 'eligible=true\npr_number=42\n');
+});
+
+test('rechaza revisores duplicados en cualquier posición', () => {
   for (const reviewers of [
     [{ id: 10, login: 'first-reviewer' }, { id: 10, login: 'second-reviewer' }],
     [{ id: 10, login: 'first-reviewer' }, { id: 20, login: 'first-reviewer' }],
-    [{ id: 10, login: 'first-reviewer' }, { id: 20, login: 'second-reviewer' }, { id: 30, login: 'third-reviewer' }],
+    [{ id: 10, login: 'first-reviewer' }, { id: 20, login: 'second-reviewer' }, { id: 10, login: 'third-reviewer' }],
   ]) {
     const pullRequest = validPullRequest();
     pullRequest.requested_reviewers = reviewers;

@@ -100,15 +100,15 @@ export function saveRelation(relations, login, discordId, now = Date.now()) {
 export function notificationKey(repository, prNumber, reviewerIds) {
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) ||
       !Number.isSafeInteger(prNumber) || prNumber < 1 ||
-      !Array.isArray(reviewerIds) || reviewerIds.length !== 2 ||
+      !Array.isArray(reviewerIds) || reviewerIds.length < 2 ||
       !reviewerIds.every((id) => Number.isSafeInteger(id) && id > 0) ||
-      reviewerIds[0] === reviewerIds[1]) {
+      new Set(reviewerIds).size !== reviewerIds.length) {
     throw new Error('The notification identity is invalid.');
   }
-  const pair = [...reviewerIds].sort((a, b) => a - b);
+  const reviewerSet = [...reviewerIds].sort((a, b) => a - b);
   // 144 bits permiten reutilizar esta clave como nonce estable de Discord.
   return createHash('sha256')
-    .update(JSON.stringify([repository, prNumber, pair]))
+    .update(JSON.stringify([repository, prNumber, reviewerSet]))
     .digest('base64url')
     .slice(0, 24);
 }

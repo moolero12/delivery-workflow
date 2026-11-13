@@ -10,6 +10,7 @@ import { readRelations, writeRelations } from '../../.github/actions/discord-pr-
 const secret = randomBytes(32).toString('base64');
 const aliceId = '123456789012345678';
 const bobId = '223456789012345678';
+const carolId = '323456789012345678';
 const reviewers = [{ login: 'alice', id: 101 }, { login: 'bob', id: 202 }];
 
 function response(value, status = 200) {
@@ -75,13 +76,61 @@ test('el mensaje contiene resumen y enlace sin menciones suministradas por la PR
   assert.doesNotMatch(message, /@everyone|<@999999999999999999>/);
 });
 
-test('la cabecera distingue los dos repositorios en el mismo canal', () => {
+test('la cabecera muestra el repositorio verificado y todos los revisores', () => {
   const pr = { number: 42, title: 'Review this', body: 'Brief summary' };
-  const packageMessage = buildMessage('venturars/delivery-workflow', pr, [aliceId, bobId]);
-  const appMessage = buildMessage('venturars/aTempo', pr, [aliceId, bobId]);
-  assert.match(packageMessage, /^\*\*Repositorio: venturars\/delivery-workflow\*\*/);
-  assert.match(appMessage, /^\*\*Repositorio: venturars\/aTempo\*\*/);
-  assert.notEqual(packageMessage, appMessage);
+  const message = buildMessage('venturars/delivery-workflow', pr, [aliceId, bobId, carolId]);
+  assert.match(message, /^\*\*Repositorio: venturars\/delivery-workflow\*\*/);
+  assert.match(message, new RegExp(`<@${aliceId}> <@${bobId}> <@${carolId}>`));
+});
+
+test('publica para tres revisores y no duplica el mismo conjunto reordenado', async (t) => {
+  const { config, pr } = setup(t);
+  pr.requested_reviewers = [...reviewers, { login: 'carol', id: 303 }];
+  const comments = [];
+  const posts = [];
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    if (url.endsWith('/pulls/40')) return response(pr);
+    if (url.includes('/issues/40/comments?')) return response(comments);
+    if (url.includes('/members/search?')) {
+      const login = new URL(url).searchParams.get('query');
+      const id = { alice: aliceId, bob: bobId, carol: carolId }[login];
+      return response([{ user: { username: login, id } }]);
+    }
+    if (url.endsWith('/channels/222222222222222222/messages')) {
+      posts.push(JSON.parse(options.body));
+      return response({ id: '999999999999999999' });
+    }
+    if (url.endsWith('/issues/40/comments') && options.method === 'POST') {
+      comments.push({ id: 77, body: JSON.parse(options.body).body });
+      return response(comments[0], 201);
+    }
+    throw new Error(`Unexpected request: ${url}`);
+  });
+  assert.equal(await notifyReviewers(config), 'notified');
+  pr.requested_reviewers = [pr.requested_reviewers[2], ...reviewers];
+  assert.equal(await notifyReviewers(config), 'already-notified');
+  assert.equal(posts.length, 1);
+  assert.deepEqual(posts[0].allowed_mentions, { parse: [], users: [aliceId, bobId, carolId] });
+  assert.deepEqual(readRelations(config.relationsFile, secret).map((item) => item.login), ['alice', 'bob', 'carol']);
+});
+
+test('no publica si falta la identidad de un tercer revisor', async (t) => {
+  const { config, pr } = setup(t);
+  pr.requested_reviewers = [...reviewers, { login: 'carol', id: 303 }];
+  let posts = 0;
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    if (url.endsWith('/pulls/40')) return response(pr);
+    if (url.includes('/issues/40/comments?')) return response([]);
+    if (url.includes('/members/search?')) {
+      const login = new URL(url).searchParams.get('query');
+      const id = { alice: aliceId, bob: bobId }[login];
+      return response(id ? [{ user: { username: login, id } }] : []);
+    }
+    if (url.includes('/messages')) posts += 1;
+    throw new Error(`Unexpected request: ${url}`);
+  });
+  await assert.rejects(notifyReviewers(config), /Reviewers unresolved: carol/);
+  assert.equal(posts, 0);
 });
 
 test('publica una vez con las dos menciones y registra el aviso tras Discord', async (t) => {

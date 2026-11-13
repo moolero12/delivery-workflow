@@ -108,14 +108,18 @@ test('fusiona artefactos de PR simultáneas en cualquier orden y aísla conflict
   });
 });
 
-test('la clave de aviso es estable para la misma PR y pareja, y separa otras PR', () => {
+test('la clave de aviso usa el conjunto de revisores sin depender del orden', () => {
   const key = notificationKey(repository, 40, reviewerIds);
   assert.match(key, /^[A-Za-z0-9_-]{24}$/);
   assert.equal(notificationKey(repository, 40, [...reviewerIds].reverse()), key);
   assert.notEqual(notificationKey(repository, 41, reviewerIds), key);
   assert.notEqual(notificationKey('other/repository', 40, reviewerIds), key);
   assert.notEqual(notificationKey(repository, 40, [101, 303]), key);
+  const threeReviewers = notificationKey(repository, 40, [101, 202, 303]);
+  assert.equal(notificationKey(repository, 40, [303, 101, 202]), threeReviewers);
+  assert.notEqual(threeReviewers, key);
   assert.throws(() => notificationKey(repository, 40, [101, 101]), /invalid/);
+  assert.throws(() => notificationKey(repository, 40, [101, 202, 101]), /invalid/);
 });
 
 test('el registro cifrado por PR sobrevive a eventos repetidos', async (t) => {

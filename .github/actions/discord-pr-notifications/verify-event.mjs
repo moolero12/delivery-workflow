@@ -1,4 +1,5 @@
 import { appendFileSync, readFileSync, statSync } from 'node:fs';
+import { hasDistinctReviewers } from './reviewers.mjs';
 
 function readPrNumber(filePath) {
   if (statSync(filePath).size > 10) {
@@ -60,15 +61,10 @@ function validatePullRequest(event, repository, baseBranch, runId, number, pullR
   }
 
   const reviewers = pullRequest.requested_reviewers;
-  // Las PR sin pareja de revisión se omiten sin consultar Discord.
+  // Las PR con menos de dos revisores se omiten sin consultar Discord.
   if (Array.isArray(reviewers) && reviewers.length < 2) return false;
-  if (!Array.isArray(reviewers) || reviewers.length !== 2 ||
-      !reviewers[0]?.login || !reviewers[1]?.login ||
-      !Number.isSafeInteger(reviewers[0].id) ||
-      !Number.isSafeInteger(reviewers[1].id) ||
-      reviewers[0].id === reviewers[1].id ||
-      reviewers[0].login === reviewers[1].login) {
-    throw new Error(`PR #${number} does not have two distinct requested reviewers.`);
+  if (!hasDistinctReviewers(reviewers)) {
+    throw new Error(`PR #${number} does not have distinct requested reviewers.`);
   }
   return true;
 }

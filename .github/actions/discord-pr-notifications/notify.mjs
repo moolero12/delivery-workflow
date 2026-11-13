@@ -1,4 +1,5 @@
 import { readRelations, saveRelation, writeRelations, wasNotified, markNotified, notificationKey } from './state.mjs';
+import { hasDistinctReviewers } from './reviewers.mjs';
 import { fileURLToPath } from 'node:url';
 
 const DISCORD_API = 'https://discord.com/api/v10';
@@ -34,8 +35,9 @@ export async function resolveReviewers(reviewers, relations, search, now = Date.
     }
   }
   const ids = reviewers.map(({ login }) => updated.find((item) => item.login === login)?.discordId);
-  if (ids.some((id) => !id) || ids[0] === ids[1]) {
-    if (ids[0] === ids[1]) problems.push('both reviewers resolve to the same Discord user');
+  const resolvedIds = ids.filter(Boolean);
+  if (new Set(resolvedIds).size !== resolvedIds.length) {
+    problems.push('multiple reviewers resolve to the same Discord user');
   }
   return { relations: updated, ids, problems };
 }
@@ -57,7 +59,7 @@ export function buildMessage(repository, pr, discordIds) {
   // El repositorio validado identifica el origen de los avisos del mismo canal.
   return `**Repositorio: ${repository}**\n**PR para revisar:** ${title || `#${pr.number}`}\n` +
     (description ? `${description}\n` : '') +
-    `Revisores: <@${discordIds[0]}> <@${discordIds[1]}>\n${link}`;
+    `Revisores: ${discordIds.map((id) => `<@${id}>`).join(' ')}\n${link}`;
 }
 
 async function currentPullRequest(repository, baseBranch, number, token) {
@@ -67,10 +69,8 @@ async function currentPullRequest(repository, baseBranch, number, token) {
   const reviewers = pr.requested_reviewers;
   if (pr.number !== number || pr.state !== 'open' || pr.draft ||
       pr.base?.ref !== baseBranch || pr.base?.repo?.full_name !== repository ||
-      !Array.isArray(reviewers) || reviewers.length !== 2 ||
-      reviewers.some((reviewer) => !reviewer.login || !Number.isSafeInteger(reviewer.id)) ||
-      reviewers[0].id === reviewers[1].id || reviewers[0].login === reviewers[1].login) {
-    throw new Error(`PR #${number} is no longer ready with two distinct reviewers.`);
+      !hasDistinctReviewers(reviewers)) {
+    throw new Error(`PR #${number} is no longer ready with distinct reviewers.`);
   }
   return pr;
 }
@@ -88,8 +88,11 @@ export async function notifyReviewers(config) {
   const pr = await currentPullRequest(repository, baseBranch, number, githubToken);
   const reviewers = pr.requested_reviewers;
   const reviewerIds = reviewers.map((reviewer) => reviewer.id);
+  if (reviewerIds.length > 100) {
+    throw new Error(`PR #${number} exceeds Discord's 100-user mention limit.`);
+  }
   if (await wasNotified(repository, number, reviewerIds, githubToken, cacheKey)) {
-    console.log(`PR #${number} and its reviewer pair were already notified.`);
+    console.log(`PR #${number} and its reviewer set were already notified.`);
     return 'already-notified';
   }
   const relations = readRelations(relationsFile, cacheKey);
@@ -101,7 +104,10 @@ export async function notifyReviewers(config) {
   }
 
   const content = buildMessage(repository, pr, result.ids);
-  // allowed_mentions limita las etiquetas a las dos identidades verificadas.
+  if (content.length > 2000) {
+    throw new Error(`PR #${number} exceeds Discord's 2000-character message limit.`);
+  }
+  // allowed_mentions limita las etiquetas a todas las identidades verificadas.
   await requestJson(`${DISCORD_API}/channels/${channelId}/messages`, {
     method: 'POST',
     headers: { authorization: `Bot ${botToken}`, 'content-type': 'application/json' },

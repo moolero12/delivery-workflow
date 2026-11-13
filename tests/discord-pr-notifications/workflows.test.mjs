@@ -3,8 +3,6 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const action = readFileSync(new URL('../../.github/actions/discord-pr-notifications/action.yml', import.meta.url), 'utf8');
-const trigger = readFileSync(new URL('../../examples/atempo/discord-pr-trigger.yml', import.meta.url), 'utf8');
-const publisher = readFileSync(new URL('../../examples/atempo/discord-pr-publish.yml', import.meta.url), 'utf8');
 const packageTrigger = readFileSync(new URL('../../.github/workflows/discord-pr-trigger.yml', import.meta.url), 'utf8');
 const packagePublisher = readFileSync(new URL('../../.github/workflows/discord-pr-publish.yml', import.meta.url), 'utf8');
 const docs = readFileSync(new URL('../../docs/DISCORD-PR-NOTIFICATIONS.md', import.meta.url), 'utf8');
@@ -24,11 +22,11 @@ test('la acción declara todos los inputs y solo ejecuta módulos del paquete', 
   assert.match(action, /retention-days: 2/);
   assert.doesNotMatch(action, /actions\/checkout|pull_request_target/);
   // Los IDs reales y los secretos no deben estar en el paquete.
-  assert.doesNotMatch(action + trigger + publisher + packageTrigger + packagePublisher + docs, /\b[0-9]{17,20}\b/);
+  assert.doesNotMatch(action + packageTrigger + packagePublisher + docs, /\b[0-9]{17,20}\b/);
 });
 
 test('el disparador recoge cualquier PR a staging sin secretos', () => {
-  for (const workflow of [trigger, packageTrigger]) {
+  for (const workflow of [packageTrigger]) {
     assert.match(workflow, /pull_request:\s*\n\s*branches: \[staging\]/);
     assert.match(workflow, /types: \[opened, review_requested, ready_for_review\]/);
     assert.match(workflow, /permissions: \{\}/);
@@ -36,21 +34,6 @@ test('el disparador recoge cualquier PR a staging sin secretos', () => {
     assert.match(workflow, /retention-days: 1/);
     assert.doesNotMatch(workflow, /actions\/checkout|secrets\.|pull_request_target/);
   }
-});
-
-test('el emisor protegido llama a un commit fijo de la acción', () => {
-  assert.match(publisher, /workflow_run:\s*\n\s*workflows: \[Discord PR notification trigger\]/);
-  assert.match(publisher, /github\.ref == 'refs\/heads\/main'/);
-  assert.match(publisher, /workflow_run\.conclusion == 'success'/);
-  assert.match(publisher, /environment: discord-pr-notifications/);
-  assert.match(publisher, /queue: max/);
-  assert.match(publisher, /cancel-in-progress: false/);
-  assert.match(publisher, /actions: read/);
-  assert.match(publisher, /issues: write/);
-  assert.match(publisher, /pull-requests: read/);
-  assert.match(publisher, /trigger-run-id: \$\{\{ github\.event\.workflow_run\.id \}\}/);
-  assert.match(publisher, /@REPLACE_WITH_V0_2_0_COMMIT_SHA/);
-  assert.doesNotMatch(publisher, /actions\/checkout|head_sha|@staging|@main/);
 });
 
 test('delivery-workflow publica desde su staging con la acción local confiable', () => {
@@ -76,14 +59,13 @@ test('delivery-workflow publica desde su staging con la acción local confiable'
   assert.doesNotMatch(packagePublisher, /head_sha|pull_request_target/);
 });
 
-test('cada emisor recibe sus propios secretos y token de GitHub', () => {
-  for (const workflow of [publisher, packagePublisher]) {
+test('el emisor recibe secretos y token de GitHub del entorno protegido', () => {
+  for (const workflow of [packagePublisher]) {
     assert.match(workflow, /github-token: \$\{\{ github\.token \}\}/);
     assert.match(workflow, /bot-token: \$\{\{ secrets\.DISCORD_BOT_TOKEN \}\}/);
     assert.match(workflow, /cache-key: \$\{\{ secrets\.DISCORD_CACHE_KEY \}\}/);
     assert.match(workflow, /guild-id: \$\{\{ vars\.DISCORD_GUILD_ID \}\}/);
     assert.match(workflow, /channel-id: \$\{\{ vars\.DISCORD_GIT_CHANNEL_ID \}\}/);
   }
-  assert.match(publisher, /expected-repository: venturars\/aTempo/);
-  assert.notEqual(publisher, packagePublisher);
+  assert.match(packagePublisher, /expected-repository: venturars\/delivery-workflow/);
 });
