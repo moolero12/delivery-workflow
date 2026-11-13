@@ -23,12 +23,12 @@ skills:
 
 1. **Recepción:** Toma lo que la persona quiere hacer y su tipo. Si `help-me-to-think` dejó un resumen, úsalo.
 2. **Validación:** El tipo es `feat`, `fix`, `docs`, `refactor`, `test`, `chore` o `knowledge`. El cuerpo va en español y rellena la plantilla del tipo de la skill `create-issue`. Si el tipo no tiene plantilla, usa la más cercana.
-3. **Procesamiento:** Sigue la skill `create-issue`: primero la etiqueta, después la issue. Asigna la issue a la cuenta del token (`@me`).
+3. **Procesamiento:** Sigue la skill `create-issue`: un solo script comprueba el título, deja lista la etiqueta y crea la issue. Asigna la issue a la cuenta del token (`@me`).
 4. **Formateo:** Responde con el número, el título, la URL y si lleva etiqueta.
 
 ## 4. Herramientas y APIs Asignadas
 
-- **Skill `create-issue`:** Crea la etiqueta si falta y la issue en GitHub con `gh.sh`. Trae una plantilla por tipo.
+- **Skill `create-issue`:** Comprueba el título, crea la etiqueta si falta y la issue en GitHub con `create-issue.sh`. Trae una plantilla por tipo.
 - **Skill `say-it-straight`:** Prosa en español del cuerpo de la issue.
 
 ## 5. Manejo de Errores y Excepciones

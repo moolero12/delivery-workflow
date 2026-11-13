@@ -76,6 +76,14 @@ if [[ -n "$existing" ]]; then
   exit 0
 fi
 
+# El título y el cuerpo se comprueban después de buscar la PR: una PR abierta antes de estas reglas se sigue encontrando.
+bash "${here}/check-title.sh" "$title" >/dev/null || exit 1
+
+if grep -Eq '#[0-9]' "$body"; then
+  echo "El cuerpo no nombra la issue: deja «Closes #» sin número, lo completa link-pr-to-issue." >&2
+  exit 1
+fi
+
 label_args=()
 if bash "${here}/ensure-label.sh" "$type"; then
   label_args=(--label "$type")
