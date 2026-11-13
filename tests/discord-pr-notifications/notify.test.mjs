@@ -31,6 +31,12 @@ function response(value, status = 200) {
 function setup(t) {
   const directory = mkdtempSync(join(tmpdir(), 'discord-notify-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const previousRepository = process.env.GITHUB_REPOSITORY;
+  process.env.GITHUB_REPOSITORY = 'owner/repo';
+  t.after(() => {
+    if (previousRepository === undefined) delete process.env.GITHUB_REPOSITORY;
+    else process.env.GITHUB_REPOSITORY = previousRepository;
+  });
   const file = join(directory, 'relations.enc.json');
   writeRelations(file, [], secret);
   const config = {
