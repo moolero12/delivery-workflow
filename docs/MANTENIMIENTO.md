@@ -9,7 +9,6 @@ Desde la raíz del repositorio:
 ```bash
 node --test tests/*.mjs
 node --test tests/discord-pr-notifications/*.test.mjs
-node --test tests/discord-reviewers.test.mjs
 bash tests/scripts.test.sh
 apm audit --ci
 ```
@@ -43,8 +42,8 @@ Una prueba de unos veinte minutos en un repositorio desechable, para comprobar e
    Para Codex, `--target codex`. Para probar una copia local del paquete, pasa su ruta en vez de `venturars/…#staging`.
 
 3. Comprueba que están las piezas:
-   - **Cursor:** `ls .agents/skills .cursor/agents` (21 skills y 8 subagentes).
-   - **Codex:** `ls .agents/skills .codex/agents` (21 skills y 8 subagentes `.toml`).
+   - **Cursor:** `ls .agents/skills .cursor/agents` (20 skills y 8 subagentes).
+   - **Codex:** `ls .agents/skills .codex/agents` (20 skills y 8 subagentes `.toml`).
 
 4. Abre la herramienta, mejor desde el escritorio que desde la terminal: así se comprueba que no depende de las variables de la terminal. En Codex, acepta la confianza en el proyecto.
 

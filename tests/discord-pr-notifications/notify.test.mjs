@@ -6,7 +6,6 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { buildMessage, notifyReviewers, resolveReviewers } from '../../.github/actions/discord-pr-notifications/notify.mjs';
 import { readRelations, writeRelations } from '../../.github/actions/discord-pr-notifications/state.mjs';
-import { COMMENT_MARKER } from '../../.github/actions/discord-pr-notifications/confirmed-relations.mjs';
 
 const secret = randomBytes(32).toString('base64');
 const aliceId = '123456789012345678';
@@ -14,13 +13,11 @@ const bobId = '223456789012345678';
 const carolId = '323456789012345678';
 const reviewers = [{ login: 'alice', id: 101 }, { login: 'bob', id: 202 }];
 
-function mappingComment(mappings) {
+function mappingComment(login, discordId) {
   return {
     id: 50, user: { id: 77 }, author_association: 'CONTRIBUTOR',
     updated_at: new Date().toISOString(),
-    body: `${COMMENT_MARKER}\n${JSON.stringify({
-      version: 1, repository: 'owner/repo', prNumber: 40, mappings,
-    })}`,
+    body: `/discord-map ${login} ${discordId}`,
   };
 }
 
@@ -99,6 +96,17 @@ test('comprueba que el ID confirmado pertenece al servidor y no acepta apodos am
   const absent = await resolveReviewers(reviewers, [], async () => [], now, confirmations,
     async () => null);
   assert.equal(absent.resolvedReviewers.length, 0);
+});
+
+test('la relación confirmada caduca desde el comentario y no desde cada ejecución', async () => {
+  const now = Date.now();
+  const confirmedAt = now - 60_000;
+  const confirmations = new Map([['alice', {
+    identity: { type: 'id', value: aliceId }, confirmedAt,
+  }]]);
+  const result = await resolveReviewers([reviewers[0]], [], async () => [], now,
+    confirmations, async (id) => ({ user: { id } }));
+  assert.equal(result.relations[0].savedAt, confirmedAt);
 });
 
 test('no elige entre un usuario y el apodo exacto de otra persona', async () => {
@@ -194,18 +202,18 @@ test('publica con dos identidades verificadas aunque un tercer revisor siga pend
   assert.match(posts[0].content, /carol \(sin mención de Discord\)/);
 });
 
-test('acepta nombres distintos confirmados en la PR y avisa después solo al tercero nuevo', async (t) => {
+test('acepta comandos con IDs distintos y avisa después solo al tercero nuevo', async (t) => {
   const { config, pr } = setup(t);
   pr.requested_reviewers = [...reviewers, { login: 'carol', id: 303 }];
-  const confirmed = [
-    { github: 'alice', discord: { type: 'name', value: 'diego_molero_' } },
-    { github: 'bob', discord: { type: 'name', value: 'bob_discord' } },
-  ];
-  const comments = [mappingComment(confirmed)];
+  const comments = [mappingComment('alice', aliceId), mappingComment('bob', bobId)];
   const posts = [];
   t.mock.method(globalThis, 'fetch', async (url, options) => {
     if (url.endsWith('/pulls/40')) return response(pr);
     if (url.includes('/issues/40/comments?')) return response(comments);
+    if (url.includes('/guilds/111111111111111111/members/') && !url.includes('/search?')) {
+      const id = url.split('/').at(-1);
+      return response({ user: { id } });
+    }
     if (url.includes('/members/search?')) {
       const query = new URL(url).searchParams.get('query');
       const id = { diego_molero_: aliceId, bob_discord: bobId, carol_discord: carolId }[query];
@@ -227,8 +235,7 @@ test('acepta nombres distintos confirmados en la PR y avisa después solo al ter
   });
   assert.equal(await notifyReviewers(config), 'notified');
   assert.deepEqual(posts[0].allowed_mentions.users, [aliceId, bobId]);
-  comments[0] = mappingComment([...confirmed,
-    { github: 'carol', discord: { type: 'name', value: 'carol_discord' } }]);
+  comments.unshift(mappingComment('carol', carolId));
   assert.equal(await notifyReviewers(config), 'notified');
   assert.deepEqual(posts[1].allowed_mentions.users, [carolId]);
   assert.match(posts[1].content, /Nuevos revisores o menciones:\*\* <@323456789012345678>/);
@@ -301,6 +308,9 @@ test('publica sin menciones y avisa a un revisor confirmado más tarde', async (
   t.mock.method(globalThis, 'fetch', async (url, options) => {
     if (url.endsWith('/pulls/40')) return response(pr);
     if (url.includes('/issues/40/comments?')) return response(comments);
+    if (url.endsWith(`/guilds/111111111111111111/members/${aliceId}`)) {
+      return relationAvailable ? response({ user: { id: aliceId } }) : response({}, 404);
+    }
     if (url.includes('/members/search?')) {
       const query = new URL(url).searchParams.get('query');
       return response(relationAvailable && query === 'diego_molero_' ?
@@ -324,7 +334,10 @@ test('publica sin menciones y avisa a un revisor confirmado más tarde', async (
   assert.deepEqual(posts[0].allowed_mentions.users, []);
   assert.match(posts[0].content, /alice \(sin mención de Discord\).*bob \(sin mención de Discord\)/);
   assert.equal(await notifyReviewers(config), 'already-notified');
-  comments.unshift(mappingComment([{ github: 'alice', discord: { type: 'name', value: 'diego_molero_' } }]));
+  comments.unshift(mappingComment('outsider', aliceId));
+  assert.equal(await notifyReviewers(config), 'already-notified');
+  comments.unshift(mappingComment('alice', aliceId));
+  assert.equal(await notifyReviewers(config), 'already-notified');
   relationAvailable = true;
   assert.equal(await notifyReviewers(config), 'notified');
   assert.deepEqual(posts[1].allowed_mentions.users, [aliceId]);
@@ -341,6 +354,9 @@ test('muestra un nuevo revisor sin Discord y luego le menciona al confirmarlo', 
   t.mock.method(globalThis, 'fetch', async (url, options) => {
     if (url.endsWith('/pulls/40')) return response(pr);
     if (url.includes('/issues/40/comments?')) return response(comments);
+    if (url.endsWith(`/guilds/111111111111111111/members/${carolId}`)) {
+      return confirmed ? response({ user: { id: carolId } }) : response({}, 404);
+    }
     if (url.includes('/members/search?')) {
       const login = new URL(url).searchParams.get('query');
       const id = { alice: aliceId, bob: bobId, carol_discord: carolId }[login];
@@ -366,7 +382,7 @@ test('muestra un nuevo revisor sin Discord y luego le menciona al confirmarlo', 
   assert.equal(await notifyReviewers(config), 'notified');
   assert.deepEqual(posts[1].allowed_mentions.users, []);
   assert.match(posts[1].content, /carol \(sin mención de Discord\)/);
-  comments.unshift(mappingComment([{ github: 'carol', discord: { type: 'name', value: 'carol_discord' } }]));
+  comments.unshift(mappingComment('carol', carolId));
   confirmed = true;
   assert.equal(await notifyReviewers(config), 'notified');
   assert.deepEqual(posts[2].allowed_mentions.users, [carolId]);

@@ -52,7 +52,7 @@ export async function resolveReviewers(reviewers, relations, search, now = Date.
       const member = await confirmedMember(confirmed.identity, search, getMember);
       updated = updated.filter((item) => item.login !== login);
       if (member && /^[0-9]{17,20}$/.test(member.user?.id ?? '')) {
-        updated = saveRelation(updated, login, member.user.id, now);
+        updated = saveRelation(updated, login, member.user.id, confirmed.confirmedAt);
       } else problems.push(`${login}: confirmation is not a unique guild member`);
     } else if (!cached) {
       const matches = (await search(login)).filter((member) => member.user?.username === login);

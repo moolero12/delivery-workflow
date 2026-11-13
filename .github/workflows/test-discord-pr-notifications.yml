@@ -16,5 +16,5 @@ jobs:
         with:
           node-version: '22'
       # Ejecuta los tests existentes y el contrato de la acción en cada PR.
-      - run: node --test tests/*.mjs tests/discord-reviewers.test.mjs tests/discord-pr-notifications/*.test.mjs
+      - run: node --test tests/*.mjs tests/discord-pr-notifications/*.test.mjs
       - run: bash tests/scripts.test.sh

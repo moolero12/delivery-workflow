@@ -7,6 +7,11 @@ const packageTrigger = readFileSync(new URL('../../.github/workflows/discord-pr-
 const confirmationTrigger = readFileSync(new URL('../../.github/workflows/discord-pr-confirmation-trigger.yml', import.meta.url), 'utf8');
 const packagePublisher = readFileSync(new URL('../../.github/workflows/discord-pr-publish.yml', import.meta.url), 'utf8');
 const docs = readFileSync(new URL('../../docs/DISCORD-PR-NOTIFICATIONS.md', import.meta.url), 'utf8');
+const createPrAgent = readFileSync(new URL('../../.apm/agents/create-pr.agent.md', import.meta.url), 'utf8');
+
+test('los agentes no incluyen el aviso optativo de Discord en la revisión', () => {
+  assert.doesNotMatch(createPrAgent, /discord-reviewers|discord-map|Discord:/);
+});
 
 test('la acción declara todos los inputs y solo ejecuta módulos del paquete', () => {
   assert.match(action, /using: composite/);
@@ -29,7 +34,7 @@ test('la acción declara todos los inputs y solo ejecuta módulos del paquete', 
 test('el disparador de confirmación solo transporta el número de una PR comentada', () => {
   assert.match(confirmationTrigger, /issue_comment:\s*\n\s*types: \[created, edited\]/);
   assert.match(confirmationTrigger, /github\.event\.issue\.pull_request/);
-  assert.match(confirmationTrigger, /discord-pr-reviewer-map:v1/);
+  assert.match(confirmationTrigger, /\/discord-map /);
   assert.match(confirmationTrigger, /permissions: \{\}/);
   assert.match(confirmationTrigger, /PR_NUMBER: \$\{\{ github\.event\.issue\.number \}\}/);
   assert.doesNotMatch(confirmationTrigger, /actions\/checkout|secrets\.|pull_request_target/);

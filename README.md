@@ -13,7 +13,7 @@ Paquete [APM](https://github.com/microsoft/apm) para **Claude Code, Cursor y Cod
 
 Se para cuando falta un dato necesario para la spec o para identificar a los revisores, si aparece un secreto o si falla la novena ronda.
 
-Este repositorio usa una [acción compuesta para avisar de sus PR en Discord](docs/DISCORD-PR-NOTIFICATIONS.md). El agente reutiliza las relaciones de Discord confirmadas durante 48 horas; las identidades desconocidas no detienen la revisión y el aviso muestra el login de GitHub sin mención. APM no instala workflows de GitHub en los proyectos que consumen el paquete.
+Este repositorio ofrece una [acción compuesta para avisar de PR en Discord](docs/DISCORD-PR-NOTIFICATIONS.md). Cada proyecto decide si activa los workflows; los agentes no intervienen en el aviso. Una identidad desconocida aparece por su login de GitHub y se puede confirmar después con un comentario opcional en la PR. APM no instala workflows de GitHub en los proyectos que consumen el paquete.
 
 ## Requisitos
 

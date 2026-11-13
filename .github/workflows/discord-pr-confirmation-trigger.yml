@@ -10,7 +10,7 @@ jobs:
   capture:
     if: >-
       github.event.issue.pull_request &&
-      startsWith(github.event.comment.body, '<!-- discord-pr-reviewer-map:v1 -->')
+      startsWith(github.event.comment.body, '/discord-map ')
     runs-on: ubuntu-latest
     steps:
       # El comentario es no confiable: solo se entrega el número de PR al emisor protegido.
