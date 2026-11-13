@@ -54,9 +54,13 @@ function validatePullRequest(event, repository, baseBranch, runId, number, pullR
   }
   if (pullRequest.number !== number ||
       pullRequest.base?.repo?.full_name !== repository ||
-      pullRequest.base?.ref !== baseBranch ||
-      pullRequest.state !== 'open') {
+      pullRequest.base?.ref !== baseBranch) {
     throw new Error(`PR #${number} is not an open, ready PR targeting the expected base.`);
+  }
+  // El disparador puede terminar después del merge; una PR ya cerrada se omite sin usar secretos.
+  if (pullRequest.state === 'closed') return false;
+  if (pullRequest.state !== 'open') {
+    throw new Error(`PR #${number} has an invalid state.`);
   }
   if (pullRequest.draft !== false) {
     if (confirmationTrigger && pullRequest.draft === true) return false;

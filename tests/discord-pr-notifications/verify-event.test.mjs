@@ -137,9 +137,16 @@ test('rechaza repositorio, base, ejecución o token mal configurados sin exponer
   }
 });
 
-test('rechaza una PR cerrada, en borrador o dirigida a otra base', () => {
+test('omite una PR cerrada antes de consultar Discord', () => {
+  const pullRequest = validPullRequest();
+  pullRequest.state = 'closed';
+  const result = runVerifier({ pullRequest });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.output, 'eligible=false\n');
+});
+
+test('rechaza una PR en borrador o dirigida a otra base', () => {
   for (const change of [
-    (pr) => { pr.state = 'closed'; },
     (pr) => { pr.draft = true; },
     (pr) => { pr.base.ref = 'main'; },
     (pr) => { pr.base.repo.full_name = 'other/repository'; },
