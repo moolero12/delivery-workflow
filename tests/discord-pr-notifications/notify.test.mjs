@@ -6,12 +6,23 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { buildMessage, notifyReviewers, resolveReviewers } from '../../.github/actions/discord-pr-notifications/notify.mjs';
 import { readRelations, writeRelations } from '../../.github/actions/discord-pr-notifications/state.mjs';
+import { COMMENT_MARKER } from '../../.github/actions/discord-pr-notifications/confirmed-relations.mjs';
 
 const secret = randomBytes(32).toString('base64');
 const aliceId = '123456789012345678';
 const bobId = '223456789012345678';
 const carolId = '323456789012345678';
 const reviewers = [{ login: 'alice', id: 101 }, { login: 'bob', id: 202 }];
+
+function mappingComment(mappings) {
+  return {
+    id: 50, user: { id: 77 }, author_association: 'CONTRIBUTOR',
+    updated_at: new Date().toISOString(),
+    body: `${COMMENT_MARKER}\n${JSON.stringify({
+      version: 1, repository: 'owner/repo', prNumber: 40, mappings,
+    })}`,
+  };
+}
 
 function response(value, status = 200) {
   return new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json' } });
@@ -29,13 +40,14 @@ function setup(t) {
   };
   const pr = {
     number: 40, state: 'open', draft: false, title: 'Add attendance view',
+    user: { id: 77 },
     body: 'A brief description of the change.', requested_reviewers: reviewers,
     base: { ref: 'staging', repo: { full_name: 'owner/repo' } },
   };
   return { config, file, pr };
 }
 
-test('busca a ambos si falta uno y guarda solo coincidencias exactas y únicas', async () => {
+test('consulta primero la caché y busca solo las identidades ausentes', async () => {
   const now = Date.now();
   const relations = [{ login: 'alice', discordId: aliceId, savedAt: now }];
   const searched = [];
@@ -44,7 +56,7 @@ test('busca a ambos si falta uno y guarda solo coincidencias exactas y únicas',
     return login === 'alice' ? [{ user: { username: 'alice', id: aliceId } }] :
       [{ user: { username: 'bob', id: bobId } }];
   }, now);
-  assert.deepEqual(searched, ['alice', 'bob']);
+  assert.deepEqual(searched, ['bob']);
   assert.deepEqual(result.ids, [aliceId, bobId]);
   assert.deepEqual(result.problems, []);
 });
@@ -59,10 +71,40 @@ test('rechaza coincidencias parciales, ambiguas y dos logins con el mismo ID', a
       { user: { username: 'alice', id: aliceId } },
       { user: { username: 'alice', id: bobId } },
     ] : [{ user: { username: 'bob', id: bobId } }]);
-  assert.ok(ambiguous.problems.some((item) => item.includes('ambiguous')));
+  assert.ok(ambiguous.problems.some((item) => item.includes('unique')));
   const same = await resolveReviewers(reviewers, [], async (login) =>
     [{ user: { username: login, id: aliceId } }]);
   assert.ok(same.problems.some((item) => item.includes('same Discord user')));
+});
+
+test('comprueba que el ID confirmado pertenece al servidor y no acepta apodos ambiguos', async () => {
+  const now = Date.now();
+  const confirmations = new Map([
+    ['alice', { identity: { type: 'id', value: aliceId }, confirmedAt: now }],
+    ['bob', { identity: { type: 'name', value: 'Bob del servidor' }, confirmedAt: now }],
+  ]);
+  const found = await resolveReviewers(reviewers, [], async () => [
+    { nick: 'Bob del servidor', user: { username: 'first', id: bobId } },
+    { nick: 'Bob del servidor', user: { username: 'second', id: carolId } },
+  ], now, confirmations, async (id) => ({ user: { id } }));
+  assert.deepEqual(found.resolvedReviewers.map((reviewer) => reviewer.login), ['alice']);
+  assert.ok(found.problems.some((problem) => problem.includes('bob')));
+
+  const absent = await resolveReviewers(reviewers, [], async () => [], now, confirmations,
+    async () => null);
+  assert.equal(absent.resolvedReviewers.length, 0);
+});
+
+test('no elige entre un usuario y el apodo exacto de otra persona', async () => {
+  const confirmations = new Map([['alice', {
+    identity: { type: 'name', value: 'diego' }, confirmedAt: Date.now(),
+  }]]);
+  const result = await resolveReviewers([reviewers[0]], [], async () => [
+    { user: { username: 'diego', id: aliceId } },
+    { nick: 'diego', user: { username: 'other', id: bobId } },
+  ], Date.now(), confirmations);
+  assert.equal(result.resolvedReviewers.length, 0);
+  assert.match(result.problems[0], /not a unique/);
 });
 
 test('el mensaje contiene resumen y enlace sin menciones suministradas por la PR', () => {
@@ -114,23 +156,74 @@ test('publica para tres revisores y no duplica el mismo conjunto reordenado', as
   assert.deepEqual(readRelations(config.relationsFile, secret).map((item) => item.login), ['alice', 'bob', 'carol']);
 });
 
-test('no publica si falta la identidad de un tercer revisor', async (t) => {
+test('publica con dos identidades verificadas aunque un tercer revisor siga pendiente', async (t) => {
   const { config, pr } = setup(t);
   pr.requested_reviewers = [...reviewers, { login: 'carol', id: 303 }];
-  let posts = 0;
-  t.mock.method(globalThis, 'fetch', async (url) => {
+  const posts = [];
+  const comments = [];
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
     if (url.endsWith('/pulls/40')) return response(pr);
-    if (url.includes('/issues/40/comments?')) return response([]);
+    if (url.includes('/issues/40/comments?')) return response(comments);
     if (url.includes('/members/search?')) {
       const login = new URL(url).searchParams.get('query');
       const id = { alice: aliceId, bob: bobId }[login];
       return response(id ? [{ user: { username: login, id } }] : []);
     }
-    if (url.includes('/messages')) posts += 1;
+    if (url.includes('/messages')) {
+      posts.push(JSON.parse(options.body));
+      return response({ id: '999999999999999999' });
+    }
+    if (url.endsWith('/issues/40/comments') && options.method === 'POST') {
+      comments.push({ id: 77, body: JSON.parse(options.body).body });
+      return response(comments[0], 201);
+    }
     throw new Error(`Unexpected request: ${url}`);
   });
-  await assert.rejects(notifyReviewers(config), /Reviewers unresolved: carol/);
-  assert.equal(posts, 0);
+  assert.equal(await notifyReviewers(config), 'notified');
+  assert.equal(posts.length, 1);
+  assert.deepEqual(posts[0].allowed_mentions.users, [aliceId, bobId]);
+});
+
+test('acepta nombres distintos confirmados en la PR y avisa después solo al tercero nuevo', async (t) => {
+  const { config, pr } = setup(t);
+  pr.requested_reviewers = [...reviewers, { login: 'carol', id: 303 }];
+  const confirmed = [
+    { github: 'alice', discord: { type: 'name', value: 'diego_molero_' } },
+    { github: 'bob', discord: { type: 'name', value: 'bob_discord' } },
+  ];
+  const comments = [mappingComment(confirmed)];
+  const posts = [];
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    if (url.endsWith('/pulls/40')) return response(pr);
+    if (url.includes('/issues/40/comments?')) return response(comments);
+    if (url.includes('/members/search?')) {
+      const query = new URL(url).searchParams.get('query');
+      const id = { diego_molero_: aliceId, bob_discord: bobId, carol_discord: carolId }[query];
+      return response(id ? [{ user: { username: query, id } }] : []);
+    }
+    if (url.endsWith('/channels/222222222222222222/messages')) {
+      posts.push(JSON.parse(options.body));
+      return response({ id: '999999999999999999' });
+    }
+    if (url.endsWith('/issues/40/comments') && options.method === 'POST') {
+      comments.push({ id: 77, body: JSON.parse(options.body).body });
+      return response(comments.at(-1), 201);
+    }
+    if (url.endsWith('/issues/comments/77') && options.method === 'PATCH') {
+      comments.at(-1).body = JSON.parse(options.body).body;
+      return response(comments.at(-1));
+    }
+    throw new Error(`Unexpected request: ${url}`);
+  });
+  assert.equal(await notifyReviewers(config), 'notified');
+  assert.deepEqual(posts[0].allowed_mentions.users, [aliceId, bobId]);
+  comments[0] = mappingComment([...confirmed,
+    { github: 'carol', discord: { type: 'name', value: 'carol_discord' } }]);
+  assert.equal(await notifyReviewers(config), 'notified');
+  assert.deepEqual(posts[1].allowed_mentions.users, [carolId]);
+  assert.match(posts[1].content, /Revisor: <@323456789012345678>/);
+  assert.equal(await notifyReviewers(config), 'already-notified');
+  assert.equal(posts.length, 2);
 });
 
 test('publica una vez con las dos menciones y registra el aviso tras Discord', async (t) => {
@@ -174,7 +267,7 @@ test('si falta una identidad conserva la otra y no publica', async (t) => {
     if (url.includes('/messages')) posts += 1;
     throw new Error(`Unexpected request: ${url}`);
   });
-  await assert.rejects(notifyReviewers(config), /Reviewers unresolved: bob/);
+  assert.equal(await notifyReviewers(config), 'pending');
   assert.equal(posts, 0);
   assert.deepEqual(readRelations(config.relationsFile, secret).map((item) => item.login), ['alice']);
 });

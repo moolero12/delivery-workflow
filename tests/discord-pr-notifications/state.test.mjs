@@ -12,6 +12,7 @@ import {
   mergeRelations,
   markNotified,
   notificationKey,
+  unnotifiedReviewerIds,
   readRelations,
   RELATION_LIFETIME_MS,
   saveRelation,
@@ -162,7 +163,7 @@ test('el registro de una PR no marca otra y detecta contenido manipulado', async
   await assert.rejects(wasNotified(repository, 40, reviewerIds, 'test-token', secret));
 });
 
-test('actualiza un registro existente sin perder la primera pareja', async (t) => {
+test('registra los revisores nuevos sin volver a mencionar a los anteriores', async (t) => {
   const comments = [];
   const methods = [];
   t.mock.method(globalThis, 'fetch', async (url, options) => {
@@ -180,9 +181,10 @@ test('actualiza un registro existente sin perder la primera pareja', async (t) =
   });
 
   await markNotified(repository, 40, [101, 202], 'test-token', secret);
-  await markNotified(repository, 40, [101, 303], 'test-token', secret);
+  assert.deepEqual(await unnotifiedReviewerIds(repository, 40, [101, 202, 303], 'test-token', secret), [303]);
+  await markNotified(repository, 40, [101, 202, 303], 'test-token', secret);
   assert.equal(await wasNotified(repository, 40, [101, 202], 'test-token', secret), true);
-  assert.equal(await wasNotified(repository, 40, [101, 303], 'test-token', secret), true);
+  assert.equal(await wasNotified(repository, 40, [101, 202, 303], 'test-token', secret), true);
   assert.deepEqual(methods.filter((method) => method !== 'GET'), ['POST', 'PATCH']);
 });
 

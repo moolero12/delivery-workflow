@@ -6,6 +6,7 @@ skills:
   - assign-author
   - create-draft
   - github-cache
+  - discord-reviewers
   - assign-reviewers
   - say-it-straight
 ---
@@ -37,8 +38,9 @@ skills:
 
 1. **Recepción:** Toma la PR y los nombres de los revisores indicados. Comprueba autor, borrador y solicitudes actuales.
 2. **Resolución:** Sigue la skill `github-cache`: consulta los alias conocidos y resuelve solo las ausencias con colaboradores, perfiles o autoría de commits del repositorio. Guarda únicamente asociaciones inequívocas.
-3. **Procesamiento:** Sigue la skill `assign-reviewers`. Comprueba el acceso en vivo, excluye al autor y los logins duplicados y solicita solo las revisiones que falten. Saca la PR de draft cuando corresponda al encargo.
-4. **Formateo:** Consulta la PR y confirma revisores solicitados y estado de borrador. Si quedan nombres sin resolver o acciones fallidas, comunica el resultado parcial sin dar esos pasos por completados.
+3. **Discord:** Sigue `discord-reviewers`: consulta primero las relaciones locales de 48 horas y pregunta en este chat por las que falten o sean dudosas. Guarda solo las confirmadas y publica el comentario técnico en la PR borrador antes de pedir las revisiones. Con tres revisores, dos relaciones confirmadas bastan para continuar; con menos de dos, devuelve la pregunta al orquestador.
+4. **Procesamiento:** Sigue la skill `assign-reviewers`. Comprueba el acceso en vivo, excluye al autor y los logins duplicados y solicita solo las revisiones que falten. Saca la PR de draft cuando corresponda al encargo.
+5. **Formateo:** Consulta la PR y confirma revisores solicitados y estado de borrador. Si quedan nombres sin resolver o acciones fallidas, comunica el resultado parcial sin dar esos pasos por completados.
 
 ## 4. Herramientas y APIs Asignadas
 
@@ -46,6 +48,7 @@ skills:
 - **Skill `assign-author`:** Asigna la PR al usuario autenticado.
 - **Skill `create-draft`:** Pasa la PR a draft cuando el encargo de creación o actualización lo requiere.
 - **Skill `github-cache`:** Consulta y guarda identidades de revisores; solo se usa al gestionar una revisión.
+- **Skill `discord-reviewers`:** Consulta y guarda relaciones de Discord confirmadas en el chat y las comunica a la PR antes de pedir revisión.
 - **Skill `assign-reviewers`:** Verifica los logins resueltos y solicita las revisiones.
 - **Skill `say-it-straight`:** Prosa en español del cuerpo de la PR.
 

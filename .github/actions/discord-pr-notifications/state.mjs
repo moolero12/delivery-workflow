@@ -205,33 +205,47 @@ async function readLedger(repository, prNumber, token, secret) {
       const data = decryptState(comment.body.slice(LEDGER_MARKER.length).trim(), secret);
       if (data?.version !== 1 || data.repository !== repository ||
           data.prNumber !== prNumber || !Array.isArray(data.keys) ||
-          !data.keys.every((key) => typeof key === 'string' && /^[A-Za-z0-9_-]{24}$/.test(key))) {
+          !data.keys.every((key) => typeof key === 'string' && /^[A-Za-z0-9_-]{24}$/.test(key)) ||
+          (data.notifiedReviewerIds !== undefined &&
+            (!Array.isArray(data.notifiedReviewerIds) ||
+              !data.notifiedReviewerIds.every((id) => Number.isSafeInteger(id) && id > 0) ||
+              new Set(data.notifiedReviewerIds).size !== data.notifiedReviewerIds.length))) {
         throw new Error('The notification ledger is invalid.');
       }
-      ledger = { id: comment.id, keys: data.keys };
+      ledger = { id: comment.id, keys: data.keys, notifiedReviewerIds: data.notifiedReviewerIds ?? null };
     }
-    if (comments.length < 100) return ledger ?? { id: null, keys: [] };
+    if (comments.length < 100) return ledger ?? { id: null, keys: [], notifiedReviewerIds: [] };
   }
   throw new Error('The notification ledger could not be fully read.');
 }
 
 export async function wasNotified(repository, prNumber, reviewerIds, token, secret) {
+  return (await unnotifiedReviewerIds(repository, prNumber, reviewerIds, token, secret)).length === 0;
+}
+
+export async function unnotifiedReviewerIds(repository, prNumber, reviewerIds, token, secret) {
   const key = notificationKey(repository, prNumber, reviewerIds);
   const ledger = await readLedger(repository, prNumber, token, secret);
-  return ledger.keys.includes(key);
+  if (ledger.keys.includes(key)) return [];
+  if (ledger.notifiedReviewerIds) {
+    const notified = new Set(ledger.notifiedReviewerIds);
+    return reviewerIds.filter((id) => !notified.has(id));
+  }
+  return reviewerIds;
 }
 
 export async function markNotified(repository, prNumber, reviewerIds, token, secret) {
   const key = notificationKey(repository, prNumber, reviewerIds);
   const ledger = await readLedger(repository, prNumber, token, secret);
-  if (ledger.keys.includes(key)) return;
+  if (ledger.keys.includes(key) && reviewerIds.every((id) => ledger.notifiedReviewerIds?.includes(id))) return;
 
   // Se llama solo después de que Discord confirme el envío.
   const encrypted = encryptState({
     version: 1,
     repository,
     prNumber,
-    keys: [...ledger.keys, key],
+    keys: [...new Set([...ledger.keys, key])],
+    notifiedReviewerIds: [...new Set([...(ledger.notifiedReviewerIds ?? []), ...reviewerIds])],
   }, secret);
   const body = JSON.stringify({ body: `${LEDGER_MARKER}\n${encrypted}` });
   if (ledger.id === null) {

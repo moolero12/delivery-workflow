@@ -11,9 +11,9 @@ Paquete [APM](https://github.com/microsoft/apm) para **Claude Code, Cursor y Cod
 5. **La cierra** con el commit final, el push y la petición de revisión.
 6. **Si la revisión pide cambios**, escribe spec, plan y tasks en un comentario de la misma issue y repite el ciclo.
 
-Solo se para si a la spec le falta un dato, si aparece un secreto o si falla la novena ronda.
+Se para cuando falta un dato necesario para la spec o para identificar a los revisores, si aparece un secreto o si falla la novena ronda.
 
-Este repositorio usa una [acción compuesta para avisar de sus PR en Discord](docs/DISCORD-PR-NOTIFICATIONS.md). APM no instala workflows de GitHub en los proyectos que consumen el paquete.
+Este repositorio usa una [acción compuesta para avisar de sus PR en Discord](docs/DISCORD-PR-NOTIFICATIONS.md). Al pedir revisión, el agente pregunta en el chat por las identidades de Discord que falten y las guarda 48 horas; APM no instala workflows de GitHub en los proyectos que consumen el paquete.
 
 ## Requisitos
 
