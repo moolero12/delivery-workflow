@@ -8,10 +8,14 @@ Desde la raíz del repositorio:
 
 ```bash
 node --test tests/*.mjs
+node --test tests/discord-pr-notifications/*.test.mjs
 bash tests/scripts.test.sh
+apm audit --ci
 ```
 
-Los dos usan un `gh` falso y un remoto local: no tocan GitHub.
+El audit comprueba la integridad de los archivos del paquete.
+
+El aviso de PR de este repositorio y su acción compuesta se describen en [DISCORD-PR-NOTIFICATIONS.md](DISCORD-PR-NOTIFICATIONS.md). APM no instala workflows de GitHub en los proyectos.
 
 ## Probar el paquete
 

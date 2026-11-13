@@ -13,6 +13,8 @@ Paquete [APM](https://github.com/microsoft/apm) para **Claude Code, Cursor y Cod
 
 Solo se para si a la spec le falta un dato, si aparece un secreto o si falla la novena ronda.
 
+Este repositorio usa una [acción compuesta para avisar de sus PR en Discord](docs/DISCORD-PR-NOTIFICATIONS.md). APM no instala workflows de GitHub en los proyectos que consumen el paquete.
+
 ## Requisitos
 
 - Un proyecto con git y un remoto `origin` en GitHub en el que puedas escribir.
@@ -21,7 +23,7 @@ Solo se para si a la spec le falta un dato, si aparece un secreto o si falla la 
 
 ## El token de GitHub
 
-Todo lo que el paquete hace en GitHub (issues, pull requests, etiquetas, revisiones) lo hace con el token del `.env`, nunca con la sesión de `gh` ni con variables de tu terminal. Por eso no hace falta abrir tu herramienta desde la terminal: basta con que encuentre `gh` y `node`, y `/check-status` lo comprueba.
+El flujo de entrega que ejecutan los agentes en GitHub (issues, pull requests, etiquetas, revisiones) usa el token del `.env`, nunca la sesión de `gh` ni las variables de tu terminal. El aviso de Discord usa el `github.token` del workflow y los secretos del entorno protegido. Por eso no hace falta abrir tu herramienta desde la terminal: basta con que encuentre `gh` y `node`, y `/check-status` lo comprueba.
 
 1. Crea un token **clásico** con el permiso `repo` en <https://github.com/settings/tokens/new?scopes=repo>. Que sea de tu cuenta: todo lo que haga el flujo aparecerá a tu nombre. Los tokens *fine-grained* no sirven en repositorios personales de otra persona.
 2. En la raíz del proyecto, crea o abre el fichero `.env` con tu editor y añade esta línea, con tu token:

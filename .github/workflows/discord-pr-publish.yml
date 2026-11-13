@@ -1,0 +1,41 @@
+name: Discord PR notification publisher
+
+on:
+  workflow_run:
+    workflows: [Discord PR notification trigger]
+    types: [completed]
+
+jobs:
+  publish:
+    if: >-
+      github.ref == 'refs/heads/staging' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment: discord-pr-notifications
+    concurrency:
+      group: discord-pr-relations
+      queue: max
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+      pull-requests: read
+    steps:
+      # workflow_run apunta al commit confiable de la rama predeterminada.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/discord-pr-notifications
+        with:
+          github-token: ${{ github.token }}
+          bot-token: ${{ secrets.DISCORD_BOT_TOKEN }}
+          cache-key: ${{ secrets.DISCORD_CACHE_KEY }}
+          guild-id: ${{ vars.DISCORD_GUILD_ID }}
+          channel-id: ${{ vars.DISCORD_GIT_CHANNEL_ID }}
+          expected-repository: venturars/delivery-workflow
+          base-branch: staging
+          trigger-run-id: ${{ github.event.workflow_run.id }}

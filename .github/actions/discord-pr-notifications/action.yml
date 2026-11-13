@@ -1,0 +1,82 @@
+name: Discord PR reviewer notification
+description: Verify a trusted PR event and notify all requested Discord reviewers once.
+inputs:
+  github-token:
+    description: Token with actions read, pull requests read and issues write permissions.
+    required: true
+  bot-token:
+    description: Existing Discord bot token.
+    required: true
+  cache-key:
+    description: Base64 encoded 32 byte encryption key.
+    required: true
+  guild-id:
+    description: Discord guild ID.
+    required: true
+  channel-id:
+    description: Discord channel ID.
+    required: true
+  expected-repository:
+    description: Full repository name allowed to publish notifications.
+    required: true
+  base-branch:
+    description: PR base branch allowed to publish notifications.
+    required: true
+  trigger-run-id:
+    description: Completed unprivileged trigger workflow run ID.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Download PR number
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      with:
+        name: discord-pr-number
+        path: ${{ runner.temp }}/discord-pr-number
+        run-id: ${{ inputs.trigger-run-id }}
+        github-token: ${{ inputs.github-token }}
+    - name: Verify trigger and current PR
+      id: verify
+      shell: bash
+      env:
+        GITHUB_ACTION_PATH: ${{ github.action_path }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        EXPECTED_REPOSITORY: ${{ inputs.expected-repository }}
+        PR_BASE_BRANCH: ${{ inputs.base-branch }}
+        TRIGGER_RUN_ID: ${{ inputs.trigger-run-id }}
+        PR_NUMBER_FILE: ${{ runner.temp }}/discord-pr-number/pr-number
+      run: node "$GITHUB_ACTION_PATH/verify-event.mjs"
+    - name: Restore encrypted reviewer relations
+      id: prepare
+      if: steps.verify.outputs.eligible == 'true'
+      shell: bash
+      env:
+        GITHUB_ACTION_PATH: ${{ github.action_path }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        EXPECTED_REPOSITORY: ${{ inputs.expected-repository }}
+        DISCORD_CACHE_KEY: ${{ inputs.cache-key }}
+        RELATIONS_FILE: ${{ runner.temp }}/discord-pr-relations/relations.enc.json
+      run: node "$GITHUB_ACTION_PATH/state.mjs" prepare
+    - name: Notify reviewers
+      if: steps.verify.outputs.eligible == 'true'
+      shell: bash
+      env:
+        GITHUB_ACTION_PATH: ${{ github.action_path }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        EXPECTED_REPOSITORY: ${{ inputs.expected-repository }}
+        PR_BASE_BRANCH: ${{ inputs.base-branch }}
+        PR_NUMBER: ${{ steps.verify.outputs.pr_number }}
+        DISCORD_BOT_TOKEN: ${{ inputs.bot-token }}
+        DISCORD_CACHE_KEY: ${{ inputs.cache-key }}
+        DISCORD_GUILD_ID: ${{ inputs.guild-id }}
+        DISCORD_GIT_CHANNEL_ID: ${{ inputs.channel-id }}
+        RELATIONS_FILE: ${{ runner.temp }}/discord-pr-relations/relations.enc.json
+      run: node "$GITHUB_ACTION_PATH/notify.mjs"
+    - name: Save encrypted reviewer relations
+      if: always() && steps.prepare.outcome == 'success'
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: discord-pr-relations
+        path: ${{ runner.temp }}/discord-pr-relations/relations.enc.json
+        retention-days: 2
+        if-no-files-found: error
