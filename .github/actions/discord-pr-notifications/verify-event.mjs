@@ -42,21 +42,27 @@ function belongsToTriggerRun(run, pullRequest) {
 
 function validatePullRequest(event, repository, baseBranch, runId, number, pullRequest) {
   const run = event.workflow_run;
+  const reviewTrigger = run?.event === 'pull_request' && run.name === 'Discord PR notification trigger';
+  const confirmationTrigger = run?.event === 'issue_comment' && run.name === 'Discord PR confirmation trigger' &&
+    run.head_repository?.full_name === repository && run.head_branch === baseBranch;
   if (event.repository?.full_name !== repository ||
       run?.repository?.full_name !== repository ||
       String(run.id) !== runId ||
-      run.event !== 'pull_request' ||
+      !(reviewTrigger || confirmationTrigger) ||
       run.conclusion !== 'success') {
     throw new Error('The completed run does not belong to this repository and trigger.');
   }
   if (pullRequest.number !== number ||
       pullRequest.base?.repo?.full_name !== repository ||
       pullRequest.base?.ref !== baseBranch ||
-      pullRequest.state !== 'open' ||
-      pullRequest.draft !== false) {
+      pullRequest.state !== 'open') {
     throw new Error(`PR #${number} is not an open, ready PR targeting the expected base.`);
   }
-  if (!belongsToTriggerRun(run, pullRequest)) {
+  if (pullRequest.draft !== false) {
+    if (confirmationTrigger && pullRequest.draft === true) return false;
+    throw new Error(`PR #${number} is not ready for notification.`);
+  }
+  if (reviewTrigger && !belongsToTriggerRun(run, pullRequest)) {
     throw new Error(`PR #${number} does not match the completed trigger run.`);
   }
 
@@ -90,7 +96,7 @@ async function main() {
   // Las rondas siguientes usan este número solo después de la consulta y validación.
   appendFileSync(process.env.GITHUB_OUTPUT, `eligible=${eligible}\n` +
     (eligible ? `pr_number=${number}\n` : ''), 'utf8');
-  console.log(eligible ? `PR #${number} verified for notification.` : `PR #${number} has fewer than two reviewers; skipped.`);
+  console.log(eligible ? `PR #${number} verified for notification.` : `PR #${number} is not ready for notification; skipped.`);
 }
 
 main().catch((error) => {

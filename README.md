@@ -11,9 +11,21 @@ Paquete [APM](https://github.com/microsoft/apm) para **Claude Code, Cursor y Cod
 5. **La cierra** con el commit final, el push y la petición de revisión.
 6. **Si la revisión pide cambios**, escribe spec, plan y tasks en un comentario de la misma issue y repite el ciclo.
 
-Solo se para si a la spec le falta un dato, si aparece un secreto o si falla la novena ronda.
+Se para cuando falta un dato necesario para la spec o para identificar a los revisores, si aparece un secreto o si falla la novena ronda.
 
-Este repositorio usa una [acción compuesta para avisar de sus PR en Discord](docs/DISCORD-PR-NOTIFICATIONS.md). APM no instala workflows de GitHub en los proyectos que consumen el paquete.
+## Avisos opcionales de PR en Discord
+
+Un proyecto puede activar los [workflows de aviso](docs/DISCORD-PR-NOTIFICATIONS.md) para sus PR hacia `staging`. APM no los instala y los agentes no intervienen. Cuando la PR tiene al menos dos revisores solicitados, el bot la publica en Discord aunque no conozca sus cuentas: muestra los logins de GitHub y menciona solo a quienes pueda verificar.
+
+Si falta una mención, el autor de la PR o un miembro autorizado del repositorio puede escribir **en un comentario de esa PR**:
+
+```text
+/discord-map LOGIN_GITHUB ID_DISCORD
+```
+
+Sustituye `LOGIN_GITHUB` por el login de un revisor solicitado y `ID_DISCORD` por su ID numérico. Para copiarlo, activa el modo desarrollador de Discord, abre el menú de esa persona y elige «Copiar ID de usuario». El workflow comprueba que el login sea revisor y que el ID pertenezca al servidor; después guarda la relación cifrada durante 48 horas y envía una mención adicional solo a esa persona. El comentario es visible en la PR: escribe únicamente el login y el ID, nunca el token del bot.
+
+El comentario es opcional. Si alguien no está en Discord o nadie confirma la relación, la revisión en GitHub y el aviso de la PR continúan sin esa mención.
 
 ## Requisitos
 

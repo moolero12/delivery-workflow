@@ -15,6 +15,7 @@ function validEvent() {
     repository: { full_name: repository },
     workflow_run: {
       id: 987,
+      name: 'Discord PR notification trigger',
       repository: { full_name: repository },
       event: 'pull_request',
       conclusion: 'success',
@@ -195,6 +196,25 @@ test('vincula la PR al run por asociación o por rama, repositorio y commit', ()
 
   fallbackEvent.workflow_run.head_sha = 'unrelated-commit';
   assert.equal(runVerifier({ event: fallbackEvent }).output, '');
+});
+
+test('admite una confirmación desde el workflow confiable y omite la PR borrador', () => {
+  const event = validEvent();
+  event.workflow_run.name = 'Discord PR confirmation trigger';
+  event.workflow_run.event = 'issue_comment';
+  event.workflow_run.pull_requests = [];
+  event.workflow_run.head_branch = 'staging';
+  event.workflow_run.head_repository.full_name = repository;
+  assert.equal(runVerifier({ event }).output, 'eligible=true\npr_number=42\n');
+
+  const draft = validPullRequest();
+  draft.draft = true;
+  const result = runVerifier({ event, pullRequest: draft });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.output, 'eligible=false\n');
+
+  event.workflow_run.head_repository.full_name = 'other/repository';
+  assert.equal(runVerifier({ event }).status, 1);
 });
 
 test('no entrega número si GitHub falla al leer la PR', () => {

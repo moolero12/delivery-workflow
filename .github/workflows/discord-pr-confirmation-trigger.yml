@@ -1,0 +1,27 @@
+name: Discord PR confirmation trigger
+
+on:
+  issue_comment:
+    types: [created, edited]
+
+permissions: {}
+
+jobs:
+  capture:
+    if: >-
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/discord-map ')
+    runs-on: ubuntu-latest
+    steps:
+      # El comentario es no confiable: solo se entrega el número de PR al emisor protegido.
+      - name: Save PR number
+        env:
+          PR_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          mkdir -p pr-event
+          printf '%s' "$PR_NUMBER" > pr-event/pr-number
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: discord-pr-number
+          path: pr-event/pr-number
+          retention-days: 1

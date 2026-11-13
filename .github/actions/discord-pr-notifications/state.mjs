@@ -113,6 +113,20 @@ export function notificationKey(repository, prNumber, reviewerIds) {
     .slice(0, 24);
 }
 
+export function messageNonce(repository, prNumber, phase, reviewerIds) {
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) ||
+      !Number.isSafeInteger(prNumber) || prNumber < 1 ||
+      !['initial', 'update-plain', 'update-mention'].includes(phase) || !Array.isArray(reviewerIds) ||
+      !reviewerIds.every((id) => Number.isSafeInteger(id) && id > 0) ||
+      new Set(reviewerIds).size !== reviewerIds.length) {
+    throw new Error('The notification nonce is invalid.');
+  }
+  return createHash('sha256')
+    .update(JSON.stringify([repository, prNumber, phase, [...reviewerIds].sort((a, b) => a - b)]))
+    .digest('base64url')
+    .slice(0, 24);
+}
+
 async function githubRequest(path, token, options = {}) {
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
@@ -205,33 +219,97 @@ async function readLedger(repository, prNumber, token, secret) {
       const data = decryptState(comment.body.slice(LEDGER_MARKER.length).trim(), secret);
       if (data?.version !== 1 || data.repository !== repository ||
           data.prNumber !== prNumber || !Array.isArray(data.keys) ||
-          !data.keys.every((key) => typeof key === 'string' && /^[A-Za-z0-9_-]{24}$/.test(key))) {
+          !data.keys.every((key) => typeof key === 'string' && /^[A-Za-z0-9_-]{24}$/.test(key)) ||
+          (data.announcedReviewerIds !== undefined &&
+            (!Array.isArray(data.announcedReviewerIds) ||
+              !data.announcedReviewerIds.every((id) => Number.isSafeInteger(id) && id > 0) ||
+              new Set(data.announcedReviewerIds).size !== data.announcedReviewerIds.length)) ||
+          (data.notifiedReviewerIds !== undefined &&
+            (!Array.isArray(data.notifiedReviewerIds) ||
+              !data.notifiedReviewerIds.every((id) => Number.isSafeInteger(id) && id > 0) ||
+              new Set(data.notifiedReviewerIds).size !== data.notifiedReviewerIds.length))) {
         throw new Error('The notification ledger is invalid.');
       }
-      ledger = { id: comment.id, keys: data.keys };
+      ledger = { id: comment.id, keys: data.keys,
+        announcedReviewerIds: data.announcedReviewerIds ?? null,
+        notifiedReviewerIds: data.notifiedReviewerIds ?? null };
     }
-    if (comments.length < 100) return ledger ?? { id: null, keys: [] };
+    if (comments.length < 100) return ledger ?? {
+      id: null, keys: [], announcedReviewerIds: [], notifiedReviewerIds: [],
+    };
   }
   throw new Error('The notification ledger could not be fully read.');
 }
 
 export async function wasNotified(repository, prNumber, reviewerIds, token, secret) {
-  const key = notificationKey(repository, prNumber, reviewerIds);
-  const ledger = await readLedger(repository, prNumber, token, secret);
-  return ledger.keys.includes(key);
+  return (await unnotifiedReviewerIds(repository, prNumber, reviewerIds, token, secret)).length === 0;
 }
 
-export async function markNotified(repository, prNumber, reviewerIds, token, secret) {
-  const key = notificationKey(repository, prNumber, reviewerIds);
+function legacyNotifiedIds(repository, prNumber, ledger, reviewerIds) {
+  const ids = new Set();
+  if (reviewerIds.length >= 2 && ledger.keys.includes(notificationKey(repository, prNumber, reviewerIds))) {
+    reviewerIds.forEach((id) => ids.add(id));
+  }
+  // El registro anterior guardaba solo hashes de parejas de revisores.
+  for (let first = 0; first < reviewerIds.length; first += 1) {
+    for (let second = first + 1; second < reviewerIds.length; second += 1) {
+      const pair = [reviewerIds[first], reviewerIds[second]];
+      if (ledger.keys.includes(notificationKey(repository, prNumber, pair))) pair.forEach((id) => ids.add(id));
+    }
+  }
+  return ids;
+}
+
+export async function notificationStatus(repository, prNumber, requestedIds, resolvedIds, token, secret) {
+  notificationKey(repository, prNumber, requestedIds);
+  if (!Array.isArray(resolvedIds) || resolvedIds.some((id) => !requestedIds.includes(id)) ||
+      new Set(resolvedIds).size !== resolvedIds.length) {
+    throw new Error('The notification identity is invalid.');
+  }
   const ledger = await readLedger(repository, prNumber, token, secret);
-  if (ledger.keys.includes(key)) return;
+  const legacy = legacyNotifiedIds(repository, prNumber, ledger, requestedIds);
+  const announced = new Set(ledger.announcedReviewerIds ?? legacy);
+  const notified = new Set(ledger.notifiedReviewerIds ?? legacy);
+  return {
+    announced: ledger.keys.length > 0,
+    newRequestedIds: requestedIds.filter((id) => !announced.has(id)),
+    newMentionIds: resolvedIds.filter((id) => !notified.has(id)),
+  };
+}
+
+export async function unnotifiedReviewerIds(repository, prNumber, reviewerIds, token, secret) {
+  if (!Array.isArray(reviewerIds) || reviewerIds.some((id) => !Number.isSafeInteger(id) || id < 1)) {
+    throw new Error('The notification identity is invalid.');
+  }
+  const ledger = await readLedger(repository, prNumber, token, secret);
+  const notified = new Set(ledger.notifiedReviewerIds ??
+    legacyNotifiedIds(repository, prNumber, ledger, reviewerIds));
+  return reviewerIds.filter((id) => !notified.has(id));
+}
+
+export async function markNotified(repository, prNumber, reviewerIds, token, secret,
+  mentionedReviewerIds = reviewerIds) {
+  const key = notificationKey(repository, prNumber, reviewerIds);
+  if (!Array.isArray(mentionedReviewerIds) ||
+      mentionedReviewerIds.some((id) => !reviewerIds.includes(id)) ||
+      new Set(mentionedReviewerIds).size !== mentionedReviewerIds.length) {
+    throw new Error('The notification identity is invalid.');
+  }
+  const ledger = await readLedger(repository, prNumber, token, secret);
+  const legacy = legacyNotifiedIds(repository, prNumber, ledger, reviewerIds);
+  const announced = new Set(ledger.announcedReviewerIds ?? legacy);
+  const notified = new Set(ledger.notifiedReviewerIds ?? legacy);
+  if (ledger.keys.includes(key) && reviewerIds.every((id) => announced.has(id)) &&
+      mentionedReviewerIds.every((id) => notified.has(id))) return;
 
   // Se llama solo después de que Discord confirme el envío.
   const encrypted = encryptState({
     version: 1,
     repository,
     prNumber,
-    keys: [...ledger.keys, key],
+    keys: [...new Set([...ledger.keys, key])],
+    announcedReviewerIds: [...new Set([...announced, ...reviewerIds])],
+    notifiedReviewerIds: [...new Set([...notified, ...mentionedReviewerIds])],
   }, secret);
   const body = JSON.stringify({ body: `${LEDGER_MARKER}\n${encrypted}` });
   if (ledger.id === null) {
