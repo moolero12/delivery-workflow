@@ -11,7 +11,9 @@ import {
   listRelationsArtifacts,
   mergeRelations,
   markNotified,
+  messageNonce,
   notificationKey,
+  notificationStatus,
   unnotifiedReviewerIds,
   readRelations,
   RELATION_LIFETIME_MS,
@@ -121,6 +123,38 @@ test('la clave de aviso usa el conjunto de revisores sin depender del orden', ()
   assert.notEqual(threeReviewers, key);
   assert.throws(() => notificationKey(repository, 40, [101, 101]), /invalid/);
   assert.throws(() => notificationKey(repository, 40, [101, 202, 101]), /invalid/);
+});
+
+test('el nonce distingue el aviso inicial sin menciones de una mención posterior', () => {
+  const initial = messageNonce(repository, 40, 'initial', reviewerIds);
+  const later = messageNonce(repository, 40, 'update-mention', [101]);
+  assert.notEqual(initial, later);
+  assert.equal(messageNonce(repository, 40, 'update-mention', [101]), later);
+  assert.notEqual(messageNonce(repository, 40, 'update-plain', [101]), later);
+});
+
+test('el registro distingue la PR anunciada de los revisores ya mencionados', async (t) => {
+  const comments = [];
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    if (url.endsWith('/issues/40/comments?per_page=100&page=1')) return jsonResponse(comments);
+    if (url.endsWith('/issues/40/comments') && options.method === 'POST') {
+      comments.push({ id: 77, body: JSON.parse(options.body).body });
+      return jsonResponse({ id: 77 }, 201);
+    }
+    if (url.endsWith('/issues/comments/77') && options.method === 'PATCH') {
+      comments[0].body = JSON.parse(options.body).body;
+      return jsonResponse({ id: 77 });
+    }
+    throw new Error(`Unexpected request: ${url}`);
+  });
+  await markNotified(repository, 40, reviewerIds, 'test-token', secret, []);
+  assert.deepEqual(await notificationStatus(repository, 40, reviewerIds, [101], 'test-token', secret), {
+    announced: true, newRequestedIds: [], newMentionIds: [101],
+  });
+  await markNotified(repository, 40, reviewerIds, 'test-token', secret, [101]);
+  assert.deepEqual(await notificationStatus(repository, 40, [101, 202, 303], [101], 'test-token', secret), {
+    announced: true, newRequestedIds: [303], newMentionIds: [],
+  });
 });
 
 test('el registro cifrado por PR sobrevive a eventos repetidos', async (t) => {

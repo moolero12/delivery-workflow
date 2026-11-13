@@ -58,19 +58,21 @@ test('no sobrescribe una relación sin corrección explícita', async (t) => {
   assert.equal((await run(['get', 'owner/repo', 'alice'])).relations[0].discord.value, 'other');
 });
 
-test('publica el comentario técnico antes de pedir revisión y lo actualiza sin duplicarlo', async (t) => {
+test('publica una relación confirmada y actualiza el comentario sin duplicarlo', async (t) => {
   const { run, calls, getComments } = setup(t);
   await run(['set', 'owner/repo', 'alice', 'Diego_Molero_']);
-  await assert.rejects(run(['publish', 'owner/repo', '40', 'alice']), /al menos dos/);
+  assert.deepEqual(await run(['publish', 'owner/repo', '40', 'alice']), {
+    prNumber: 40, published: 1, updated: false,
+  });
   await run(['set', 'owner/repo', 'bob', '<@223456789012345678>']);
   assert.deepEqual(await run(['publish', 'owner/repo', '40', 'alice', 'bob']), {
-    prNumber: 40, published: 2, updated: false,
+    prNumber: 40, published: 2, updated: true,
   });
   assert.equal(getComments().length, 1);
   assert.equal(JSON.parse(getComments()[0].body.split('\n')[1]).mappings[0].discord.value, 'Diego_Molero_');
   assert.equal((await run(['publish', 'owner/repo', '40', 'alice', 'bob'])).updated, true);
   assert.equal(calls.filter((call) => call.method === 'POST').length, 1);
-  assert.equal(calls.filter((call) => call.method === 'PATCH').length, 1);
+  assert.equal(calls.filter((call) => call.method === 'PATCH').length, 2);
 });
 
 test('el comentario solo contiene las relaciones confirmadas', () => {

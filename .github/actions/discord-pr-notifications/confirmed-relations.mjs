@@ -24,7 +24,7 @@ export function parseMappingComment(comment, pr, repository, now = Date.now()) {
   catch { return null; }
   if (document?.version !== 1 || document.repository !== repository ||
       document.prNumber !== pr.number || !Array.isArray(document.mappings) ||
-      document.mappings.length < 2 || document.mappings.length > 100) return null;
+      document.mappings.length < 1 || document.mappings.length > 100) return null;
   const seen = new Set();
   for (const mapping of document.mappings) {
     const login = typeof mapping?.github === 'string' ? mapping.github.toLowerCase() : '';
