@@ -29,6 +29,12 @@ test('lee relaciones recientes confirmadas por el autor de la PR', () => {
   assert.deepEqual(result.get('bob').identity, { type: 'id', value: '223456789012345678' });
 });
 
+test('acepta una única relación para avisar después de la PR', () => {
+  const result = latestConfirmedMappings([comment([mappings[0]])], pr, repository, now);
+  assert.equal(result.size, 1);
+  assert.equal(result.get('alice').identity.value, 'diego_molero_');
+});
+
 test('ignora comentarios ajenos, caducados y de otra PR', () => {
   const untrusted = comment(mappings, { user: { id: 99 } });
   const expired = comment(mappings, { updated_at: new Date(now - RELATION_LIFETIME_MS).toISOString() });

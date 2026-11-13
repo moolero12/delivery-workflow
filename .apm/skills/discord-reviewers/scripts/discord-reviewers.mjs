@@ -85,7 +85,7 @@ async function saveCache(cachePath, cache) {
 
 export function buildMappingComment(repository, prNumber, mappings) {
   if (!REPOSITORY.test(repository) || !Number.isSafeInteger(prNumber) || prNumber < 1 ||
-      !Array.isArray(mappings) || mappings.length < 2 ||
+      !Array.isArray(mappings) || mappings.length < 1 ||
       new Set(mappings.map((mapping) => mapping.github?.toLowerCase())).size !== mappings.length ||
       mappings.some((mapping) => !mapping || !LOGIN.test(mapping.github) || !mapping.discord ||
         JSON.stringify(parseDiscordIdentity(mapping.discord.value)) !== JSON.stringify(mapping.discord))) {
@@ -138,7 +138,7 @@ export async function runCommand(args, { cachePath, host, account, now = Date.no
       const mappings = [...new Set(logins.map((login) => login.toLowerCase()))]
         .filter((login) => entries[login])
         .map((github) => ({ github, discord: entries[github].identity }));
-      if (mappings.length < 2) throw new Error('Confirma al menos dos identidades antes de pedir revisión.');
+      if (mappings.length < 1) throw new Error('Confirma al menos una identidad antes de publicar la relación.');
       const pr = await githubApi('GET', `repos/${repository}/pulls/${prNumber}`);
       if (pr?.number !== prNumber || pr.state !== 'open') throw new Error('La PR no está abierta.');
       const body = buildMappingComment(repository, prNumber, mappings);
