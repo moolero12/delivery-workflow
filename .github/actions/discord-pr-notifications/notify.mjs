@@ -1,4 +1,4 @@
-import { readRelations, saveRelation, writeRelations, notificationStatus, markNotified, messageNonce } from './state.mjs';
+import { readRelations, saveRelation, writeRelations, unnotifiedReviewerIds, markNotified, notificationKey } from './state.mjs';
 import { hasDistinctReviewers } from './reviewers.mjs';
 import { readConfirmedMappings } from './confirmed-relations.mjs';
 import { fileURLToPath } from 'node:url';
@@ -84,18 +84,14 @@ function plainText(value, limit) {
     .slice(0, limit);
 }
 
-export function buildMessage(repository, pr, reviewers, update = false) {
+export function buildMessage(repository, pr, discordIds) {
   const title = plainText(pr.title, 120);
   const description = plainText(pr.body, 180);
   const link = `https://github.com/${repository}/pull/${pr.number}`;
-  const names = reviewers.map(({ login, discordId }) =>
-    `${discordId ? `<@${discordId}>` : plainText(login, 39)} ` +
-    `(${discordId ? `GitHub: ${plainText(login, 39)}` : 'sin mención de Discord'})`).join(', ');
-  const label = update ? 'Nuevos revisores o menciones' : 'Revisores';
   // El repositorio validado identifica el origen de los avisos del mismo canal.
   return `**Repositorio: ${repository}**\n**PR para revisar:** ${title || `#${pr.number}`}\n` +
     (description ? `${description}\n` : '') +
-    `**${label}:** ${names}\n${link}`;
+    `${discordIds.length === 1 ? 'Revisor' : 'Revisores'}: ${discordIds.map((id) => `<@${id}>`).join(' ')}\n${link}`;
 }
 
 async function currentPullRequest(repository, baseBranch, number, token) {
@@ -129,25 +125,21 @@ export async function notifyReviewers(config) {
     (query) => searchDiscordMembers(guildId, query, botToken), Date.now(), confirmations,
     (id) => getDiscordMember(guildId, id, botToken));
   writeRelations(relationsFile, result.relations, cacheKey);
-  const requestedIds = reviewers.map((reviewer) => reviewer.id);
-  const resolvedIds = result.resolvedReviewers.map((reviewer) => reviewer.id);
-  // El primer aviso sale con cero menciones si hace falta; las confirmaciones posteriores son actualizaciones.
-  const status = await notificationStatus(repository, number, requestedIds, resolvedIds, githubToken, cacheKey);
-  const affectedIds = new Set([...status.newRequestedIds, ...status.newMentionIds]);
-  if (status.announced && affectedIds.size === 0) {
-    console.log(`PR #${number} and its reviewers were already notified.`);
+  if (result.resolvedReviewers.length < 2) {
+    console.log(`PR #${number} is waiting for at least two confirmed Discord reviewers.`);
+    return 'pending';
+  }
+  const reviewerIds = result.resolvedReviewers.map((reviewer) => reviewer.id);
+  const newReviewerIds = await unnotifiedReviewerIds(repository, number, reviewerIds, githubToken, cacheKey);
+  if (newReviewerIds.length === 0) {
+    console.log(`PR #${number} and its confirmed reviewer set were already notified.`);
     return 'already-notified';
   }
-  const mentionedIds = status.announced ? status.newMentionIds : resolvedIds;
-  const mentionsById = new Map(result.resolvedReviewers
-    .filter((reviewer) => mentionedIds.includes(reviewer.id))
-    .map((reviewer) => [reviewer.id, reviewer.discordId]));
-  const messageReviewers = reviewers.filter((reviewer) => !status.announced || affectedIds.has(reviewer.id))
-    .map((reviewer) => ({ ...reviewer, discordId: mentionsById.get(reviewer.id) }));
-  const discordIds = messageReviewers.map((reviewer) => reviewer.discordId).filter(Boolean);
+  const newReviewers = result.resolvedReviewers.filter((reviewer) => newReviewerIds.includes(reviewer.id));
+  const discordIds = newReviewers.map((reviewer) => reviewer.discordId);
   if (discordIds.length > 100) throw new Error(`PR #${number} exceeds Discord's 100-user mention limit.`);
 
-  const content = buildMessage(repository, pr, messageReviewers, status.announced);
+  const content = buildMessage(repository, pr, discordIds);
   if (content.length > 2000) {
     throw new Error(`PR #${number} exceeds Discord's 2000-character message limit.`);
   }
@@ -158,14 +150,12 @@ export async function notifyReviewers(config) {
     body: JSON.stringify({
       content,
       allowed_mentions: { parse: [], users: discordIds },
-      nonce: messageNonce(repository, number,
-        status.announced ? (mentionedIds.length ? 'update-mention' : 'update-plain') : 'initial',
-        status.announced ? [...affectedIds] : []),
+      nonce: notificationKey(repository, number, reviewerIds),
       enforce_nonce: true,
     }),
   });
   try {
-    await markNotified(repository, number, requestedIds, githubToken, cacheKey, mentionedIds);
+    await markNotified(repository, number, reviewerIds, githubToken, cacheKey);
   } catch {
     throw new Error(`Discord accepted PR #${number}, but its notification record is uncertain. Check #git before retrying.`);
   }

@@ -116,22 +116,19 @@ test('no elige entre un usuario y el apodo exacto de otra persona', async () => 
 test('el mensaje contiene resumen y enlace sin menciones suministradas por la PR', () => {
   const message = buildMessage('owner/repo', {
     number: 40, title: '@everyone **New**', body: 'Please <@999999999999999999> review',
-  }, [{ login: 'alice', discordId: aliceId }, { login: 'bob', discordId: bobId }]);
+  }, [aliceId, bobId]);
   assert.match(message, /^\*\*Repositorio: owner\/repo\*\*\n/);
   assert.match(message, /New/);
   assert.match(message, /https:\/\/github\.com\/owner\/repo\/pull\/40/);
-  assert.match(message, new RegExp(`<@${aliceId}>.*<@${bobId}>`));
+  assert.match(message, new RegExp(`<@${aliceId}> <@${bobId}>`));
   assert.doesNotMatch(message, /@everyone|<@999999999999999999>/);
 });
 
 test('la cabecera muestra el repositorio verificado y todos los revisores', () => {
   const pr = { number: 42, title: 'Review this', body: 'Brief summary' };
-  const message = buildMessage('venturars/delivery-workflow', pr, [
-    { login: 'alice', discordId: aliceId }, { login: 'bob', discordId: bobId },
-    { login: 'carol', discordId: carolId },
-  ]);
+  const message = buildMessage('venturars/delivery-workflow', pr, [aliceId, bobId, carolId]);
   assert.match(message, /^\*\*Repositorio: venturars\/delivery-workflow\*\*/);
-  assert.match(message, new RegExp(`<@${aliceId}>.*<@${bobId}>.*<@${carolId}>`));
+  assert.match(message, new RegExp(`<@${aliceId}> <@${bobId}> <@${carolId}>`));
 });
 
 test('publica para tres revisores y no duplica el mismo conjunto reordenado', async (t) => {
@@ -191,7 +188,6 @@ test('publica con dos identidades verificadas aunque un tercer revisor siga pend
   assert.equal(await notifyReviewers(config), 'notified');
   assert.equal(posts.length, 1);
   assert.deepEqual(posts[0].allowed_mentions.users, [aliceId, bobId]);
-  assert.match(posts[0].content, /carol \(sin mención de Discord\)/);
 });
 
 test('acepta nombres distintos confirmados en la PR y avisa después solo al tercero nuevo', async (t) => {
@@ -231,7 +227,7 @@ test('acepta nombres distintos confirmados en la PR y avisa después solo al ter
     { github: 'carol', discord: { type: 'name', value: 'carol_discord' } }]);
   assert.equal(await notifyReviewers(config), 'notified');
   assert.deepEqual(posts[1].allowed_mentions.users, [carolId]);
-  assert.match(posts[1].content, /Nuevos revisores o menciones:\*\* <@323456789012345678>/);
+  assert.match(posts[1].content, /Revisor: <@323456789012345678>/);
   assert.equal(await notifyReviewers(config), 'already-notified');
   assert.equal(posts.length, 2);
 });
@@ -264,114 +260,22 @@ test('publica una vez con las dos menciones y registra el aviso tras Discord', a
   assert.deepEqual(readRelations(config.relationsFile, secret).map((item) => item.login), ['alice', 'bob']);
 });
 
-test('si falta una identidad conserva la otra y publica sin mencionar la ausente', async (t) => {
+test('si falta una identidad conserva la otra y no publica', async (t) => {
   const { config, pr } = setup(t);
-  const comments = [];
-  const posts = [];
-  t.mock.method(globalThis, 'fetch', async (url, options) => {
+  let posts = 0;
+  t.mock.method(globalThis, 'fetch', async (url) => {
     if (url.endsWith('/pulls/40')) return response(pr);
-    if (url.includes('/issues/40/comments?')) return response(comments);
+    if (url.includes('/issues/40/comments?')) return response([]);
     if (url.includes('/members/search?')) {
       const login = new URL(url).searchParams.get('query');
       return response(login === 'alice' ? [{ user: { username: 'alice', id: aliceId } }] : []);
     }
-    if (url.includes('/messages')) {
-      posts.push(JSON.parse(options.body));
-      return response({ id: '999999999999999999' });
-    }
-    if (url.endsWith('/issues/40/comments') && options.method === 'POST') {
-      comments.push({ id: 77, body: JSON.parse(options.body).body });
-      return response(comments[0], 201);
-    }
+    if (url.includes('/messages')) posts += 1;
     throw new Error(`Unexpected request: ${url}`);
   });
-  assert.equal(await notifyReviewers(config), 'notified');
-  assert.equal(await notifyReviewers(config), 'already-notified');
-  assert.equal(posts.length, 1);
-  assert.deepEqual(posts[0].allowed_mentions.users, [aliceId]);
-  assert.match(posts[0].content, /bob \(sin mención de Discord\)/);
+  assert.equal(await notifyReviewers(config), 'pending');
+  assert.equal(posts, 0);
   assert.deepEqual(readRelations(config.relationsFile, secret).map((item) => item.login), ['alice']);
-});
-
-test('publica sin menciones y avisa a un revisor confirmado más tarde', async (t) => {
-  const { config, pr } = setup(t);
-  const comments = [];
-  const posts = [];
-  let relationAvailable = false;
-  t.mock.method(globalThis, 'fetch', async (url, options) => {
-    if (url.endsWith('/pulls/40')) return response(pr);
-    if (url.includes('/issues/40/comments?')) return response(comments);
-    if (url.includes('/members/search?')) {
-      const query = new URL(url).searchParams.get('query');
-      return response(relationAvailable && query === 'diego_molero_' ?
-        [{ user: { username: query, id: aliceId } }] : []);
-    }
-    if (url.includes('/messages')) {
-      posts.push(JSON.parse(options.body));
-      return response({ id: '999999999999999999' });
-    }
-    if (url.endsWith('/issues/40/comments') && options.method === 'POST') {
-      comments.push({ id: 77, body: JSON.parse(options.body).body });
-      return response(comments.at(-1), 201);
-    }
-    if (url.endsWith('/issues/comments/77') && options.method === 'PATCH') {
-      comments.at(-1).body = JSON.parse(options.body).body;
-      return response(comments.at(-1));
-    }
-    throw new Error(`Unexpected request: ${url}`);
-  });
-  assert.equal(await notifyReviewers(config), 'notified');
-  assert.deepEqual(posts[0].allowed_mentions.users, []);
-  assert.match(posts[0].content, /alice \(sin mención de Discord\).*bob \(sin mención de Discord\)/);
-  assert.equal(await notifyReviewers(config), 'already-notified');
-  comments.unshift(mappingComment([{ github: 'alice', discord: { type: 'name', value: 'diego_molero_' } }]));
-  relationAvailable = true;
-  assert.equal(await notifyReviewers(config), 'notified');
-  assert.deepEqual(posts[1].allowed_mentions.users, [aliceId]);
-  assert.notEqual(posts[0].nonce, posts[1].nonce);
-  assert.equal(await notifyReviewers(config), 'already-notified');
-  assert.equal(posts.length, 2);
-});
-
-test('muestra un nuevo revisor sin Discord y luego le menciona al confirmarlo', async (t) => {
-  const { config, pr } = setup(t);
-  const comments = [];
-  const posts = [];
-  let confirmed = false;
-  t.mock.method(globalThis, 'fetch', async (url, options) => {
-    if (url.endsWith('/pulls/40')) return response(pr);
-    if (url.includes('/issues/40/comments?')) return response(comments);
-    if (url.includes('/members/search?')) {
-      const login = new URL(url).searchParams.get('query');
-      const id = { alice: aliceId, bob: bobId, carol_discord: carolId }[login];
-      return response(id && (login !== 'carol_discord' || confirmed) ?
-        [{ user: { username: login, id } }] : []);
-    }
-    if (url.includes('/messages')) {
-      posts.push(JSON.parse(options.body));
-      return response({ id: '999999999999999999' });
-    }
-    if (url.endsWith('/issues/40/comments') && options.method === 'POST') {
-      comments.push({ id: 77, body: JSON.parse(options.body).body });
-      return response(comments.at(-1), 201);
-    }
-    if (url.endsWith('/issues/comments/77') && options.method === 'PATCH') {
-      comments.at(-1).body = JSON.parse(options.body).body;
-      return response(comments.at(-1));
-    }
-    throw new Error(`Unexpected request: ${url}`);
-  });
-  assert.equal(await notifyReviewers(config), 'notified');
-  pr.requested_reviewers = [...reviewers, { login: 'carol', id: 303 }];
-  assert.equal(await notifyReviewers(config), 'notified');
-  assert.deepEqual(posts[1].allowed_mentions.users, []);
-  assert.match(posts[1].content, /carol \(sin mención de Discord\)/);
-  comments.unshift(mappingComment([{ github: 'carol', discord: { type: 'name', value: 'carol_discord' } }]));
-  confirmed = true;
-  assert.equal(await notifyReviewers(config), 'notified');
-  assert.deepEqual(posts[2].allowed_mentions.users, [carolId]);
-  assert.notEqual(posts[1].nonce, posts[2].nonce);
-  assert.equal(await notifyReviewers(config), 'already-notified');
 });
 
 test('un error de Discord no registra el aviso y permite otro intento', async (t) => {

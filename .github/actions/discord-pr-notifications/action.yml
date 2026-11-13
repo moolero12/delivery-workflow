@@ -1,5 +1,5 @@
 name: Discord PR reviewer notification
-description: Announce a trusted PR and mention only verified Discord reviewers without repeats.
+description: Verify a trusted PR event and notify confirmed Discord reviewers without repeating mentions.
 inputs:
   github-token:
     description: Token with actions read, pull requests read and issues write permissions.
