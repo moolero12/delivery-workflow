@@ -428,7 +428,11 @@ test('avisa del estado incierto si Discord acepta pero falla el registro', async
     }
     throw new Error(`Unexpected request: ${url}`);
   });
-  await assert.rejects(notifyReviewers(config), /notification record is uncertain/);
+  await assert.rejects(notifyReviewers(config), (error) => {
+    assert.match(error.message, /notification record is uncertain \(GitHub HTTP 503\)/);
+    assert.doesNotMatch(error.message, /github-token|bot-token|unavailable/);
+    return true;
+  });
   assert.equal(messages, 1);
 });
 

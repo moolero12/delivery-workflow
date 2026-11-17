@@ -166,8 +166,11 @@ export async function notifyReviewers(config) {
   });
   try {
     await markNotified(repository, number, requestedIds, githubToken, cacheKey, mentionedIds);
-  } catch {
-    throw new Error(`Discord accepted PR #${number}, but its notification record is uncertain. Check #git before retrying.`);
+  } catch (error) {
+    // Muestra solo el código HTTP; nunca devuelve el token ni el registro cifrado.
+    const status = /^GitHub state request failed \(HTTP (\d{3})\)\.$/.exec(error?.message ?? '');
+    const detail = status ? `GitHub HTTP ${status[1]}` : 'local state error';
+    throw new Error(`Discord accepted PR #${number}, but its notification record is uncertain (${detail}). Check #git before retrying.`);
   }
   console.log(`PR #${number} notified in Discord.`);
   return 'notified';
